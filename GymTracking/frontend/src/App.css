@@ -40,7 +40,16 @@ body { margin: 0; padding: 0; overflow-x: hidden; background: var(--fitbit-bg); 
 .sidebar-nav a:hover { background: rgba(255,255,255,0.06); color: #fff; }
 .sidebar-nav a.active-link { background: var(--fitbit-teal); color: #fff; }
 
-.app-main { flex: 1; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; background: var(--fitbit-bg); }
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--fitbit-bg);
+}
 
 .top-bar {
   background: var(--fitbit-surface); padding: 12px 24px 16px;
@@ -62,11 +71,23 @@ body { margin: 0; padding: 0; overflow-x: hidden; background: var(--fitbit-bg); 
 }
 .top-bar .icon-btn:hover { color: #fff; background: var(--fitbit-card); }
 
-.content-area { padding: 16px 20px 56px; flex: 1; max-width: 1120px; margin: 0 auto; width: 100%; }
-.content-area--wide { max-width: 100%; padding-left: 20px; padding-right: 20px; }
+.content-area {
+  padding: 16px 20px 56px;
+  flex: 1;
+  min-height: 0;
+  max-width: 1120px;
+  margin: 0 auto;
+  width: 100%;
+}
+.content-area--wide {
+  max-width: 100%;
+  width: 100%;
+  padding-left: 24px;
+  padding-right: 24px;
+}
 .chart-container { position: relative; height: 220px; width: 100%; }
 
-/* Today – full width, từng phần một hàng, card xếp ngang và xuống dòng */
+/* Today – container full width, cuộn dọc, grid đối xứng (2 cột Dinh dưỡng/Hoạt động, 3 cột Sức khỏe) */
 .today-sections {
   display: flex;
   flex-direction: column;
@@ -87,11 +108,26 @@ body { margin: 0; padding: 0; overflow-x: hidden; background: var(--fitbit-bg); 
   margin: 0;
   letter-spacing: -0.01em;
 }
+/* Khoảng cách lưới nhất quán để cạnh trái/phải thẳng hàng giữa 2 cột và 3 cột */
 .today-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
+  gap: 16px;
   width: 100%;
+}
+.today-cards--1col {
+  grid-template-columns: 1fr;
+}
+.today-cards--2col {
+  grid-template-columns: repeat(2, 1fr);
+}
+.today-cards--3col {
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 640px) {
+  .today-cards--2col,
+  .today-cards--3col {
+    grid-template-columns: 1fr;
+  }
 }
 .fitbit-card {
   background: var(--fitbit-card); border-radius: var(--radius); padding: 14px 16px;
@@ -188,11 +224,29 @@ button.fitbit-card-icon:hover { opacity: 0.9; }
   min-height: 200px;
   border-radius: var(--radius);
   background: rgba(255,255,255,0.06);
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.workout-video-placeholder i { font-size: 5rem; }
+.workout-video-image {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  object-fit: cover;
+  display: block;
+}
+.workout-video-play-icon {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 4rem;
+  color: rgba(255,255,255,0.9);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  pointer-events: none;
+}
 .workout-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
 .workout-meta-item {
   padding: 14px 16px;

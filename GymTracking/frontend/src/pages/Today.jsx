@@ -14,7 +14,7 @@ function Today() {
     <div className="today-sections">
       <section className="today-section">
         <h2 className="today-section-title">Sleep</h2>
-        <div className="today-cards">
+        <div className="today-cards today-cards--1col">
           <div className="fitbit-card">
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Sleep duration</p>
@@ -28,7 +28,7 @@ function Today() {
 
       <section className="today-section">
         <h2 className="today-section-title">Nutrition</h2>
-        <div className="today-cards">
+        <div className="today-cards today-cards--2col">
           <div className="fitbit-card">
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Food</p>
@@ -52,7 +52,7 @@ function Today() {
 
       <section className="today-section">
         <h2 className="today-section-title">Activity</h2>
-        <div className="today-cards">
+        <div className="today-cards today-cards--2col">
           <div className="fitbit-card">
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Exercise days</p>
@@ -81,7 +81,7 @@ function Today() {
 
       <section className="today-section">
         <h2 className="today-section-title">Health</h2>
-        <div className="today-cards">
+        <div className="today-cards today-cards--3col">
           <div className="fitbit-card">
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Weight</p>

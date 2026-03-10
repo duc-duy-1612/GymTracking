@@ -23,7 +23,12 @@ function Workout() {
           <h4 className="workout-main-title">Bench Press</h4>
           <p className="workout-main-target text-muted">Target: Pectoralis Major, Anterior Deltoids</p>
           <div className="workout-video-placeholder">
-            <i className="bi bi-play-circle-fill text-secondary" />
+            <img
+              src="https://s3.amazonaws.com/prod.skimble/assets/2289486/image_iphone.jpg"
+              alt="Bench Press hướng dẫn"
+              className="workout-video-image"
+            />
+            <i className="bi bi-play-circle-fill workout-video-play-icon" aria-hidden />
           </div>
           <div className="workout-meta">
             <div className="workout-meta-item"><small className="text-muted d-block">SETS</small><strong>4</strong></div>

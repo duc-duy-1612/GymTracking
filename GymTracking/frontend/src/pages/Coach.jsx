@@ -34,7 +34,7 @@ const STRESS_ITEMS = [
 ];
 
 const FITNESS_ITEMS = [
-  { title: 'Wheelchair med ball cardio', duration: '18 min', type: 'Workout', image: 'https://images.unsplash.com/photo-1581009146145-b5ef050c149e?w=400&h=240&fit=crop' },
+  { title: 'Wheelchair med ball cardio', duration: '18 min', type: 'Workout', image: 'https://tse1.mm.bing.net/th/id/OIP.vbVq3bGXq_IcmozP-IEikgHaEK?pid=Api&P=0&h=180' },
   { title: 'Peloton: Full body strength', duration: '20 min', type: 'Workout', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=240&fit=crop' },
   { title: 'Yoga for beginners', duration: '25 min', type: 'Yoga', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
 ];
@@ -43,7 +43,7 @@ const INSTRUCTORS = [
   { name: 'Denise', role: 'Fitness Instructor', image: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=200&h=200&fit=crop&crop=face' },
   { name: 'Diamond', role: 'Fitness Instructor', image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&h=200&fit=crop&crop=face' },
   { name: 'Alex', role: 'Yoga Instructor', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Jordan', role: 'Strength Coach', image: 'https://images.unsplash.com/photo-1567013216163-7a81162f4675?w=200&h=200&fit=crop&crop=face' },
+  { name: 'Jordan', role: 'Strength Coach', image: 'https://thumbs.dreamstime.com/b/confident-motivated-fitness-coach-posing-gym-105270802.jpg' },
   { name: 'Kirra', role: 'Peloton Instructor', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=200&h=200&fit=crop&crop=face' },
   { name: 'Marcus', role: 'HIIT Coach', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&h=200&fit=crop&crop=face' },
   { name: 'Sofia', role: 'Pilates Instructor', image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=200&h=200&fit=crop&crop=face' },
