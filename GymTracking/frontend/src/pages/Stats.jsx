@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Chart from 'chart.js/auto';
 import { useUser } from '../context/UserContext';
+import dailySummaryService from '../services/dailySummaryService';
 
 const CHART_COLORS = {
   teal: '#00B0B9',
@@ -14,12 +15,8 @@ function calcBmi(weightKg, heightCm) {
   return (weightKg / ((heightCm / 100) ** 2)).toFixed(1);
 }
 
-const BODY_COMP_DATA = {
-  labels: ['Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7'],
-  values: [85, 82, 79, 77, 76, 75],
-};
-
-const WORKOUT_WEEK = [1, 1, 0, 1, 1, 1, 0];
+const BODY_COMP_LABELS = ['Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7'];
+const BODY_COMP_MOCK = [85, 82, 79, 77, 76, 75];
 
 const PROPORTIONS = [
   { label: 'Mỡ', value: 25, color: CHART_COLORS.doughnut[0] },
@@ -30,17 +27,32 @@ const PROPORTIONS = [
 
 function Stats() {
   const { user, loading: userLoading } = useUser();
+  const [todaySummary, setTodaySummary] = useState(null);
   const [muscleMapGender, setMuscleMapGender] = useState('female');
   const [chartPeriod, setChartPeriod] = useState('month');
   const bodyCompRef = useRef(null);
   const workoutChartRef = useRef(null);
   const proportionsRef = useRef(null);
 
+  useEffect(() => {
+    dailySummaryService.getToday()
+      .then((res) => setTodaySummary(res.data))
+      .catch(() => setTodaySummary(null));
+  }, []);
+
   const weight = user?.measurements?.weight;
   const height = user?.measurements?.height;
+  const waist = user?.measurements?.waist;
   const targetWeight = user?.goals?.targetWeight;
   const bmi = user?.autoStats?.bmi ?? (weight && height ? calcBmi(weight, height) : null);
   const targetBmi = user?.autoStats?.targetBmi ?? (targetWeight != null && height ? calcBmi(targetWeight, height) : null);
+  const bodyCompValues = waist != null && waist > 0
+    ? [...BODY_COMP_MOCK.slice(0, -1), waist]
+    : BODY_COMP_MOCK;
+  const todayDayIndex = new Date().getDay();
+  const workoutWeek = [0, 0, 0, 0, 0, 0, 0];
+  workoutWeek[todayDayIndex] = todaySummary?.exercisedToday ? 1 : 0;
+
   const userStatsRows = [
     { icon: 'bi-person', label: 'Tên', value: user?.name ?? '—' },
     { icon: 'bi-person-badge', label: 'BMI', value: bmi ?? '—' },
@@ -56,10 +68,10 @@ function Stats() {
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: BODY_COMP_DATA.labels,
+        labels: BODY_COMP_LABELS,
         datasets: [{
           label: 'Vòng eo (cm)',
-          data: BODY_COMP_DATA.values,
+          data: bodyCompValues,
           borderColor: CHART_COLORS.teal,
           backgroundColor: CHART_COLORS.tealLight,
           borderWidth: 2,
@@ -95,7 +107,7 @@ function Stats() {
       },
     });
     return () => chart.destroy();
-  }, [chartPeriod]);
+  }, [chartPeriod, bodyCompValues]);
 
   useEffect(() => {
     if (!workoutChartRef.current) return;
@@ -103,10 +115,10 @@ function Stats() {
     const chart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'],
+        labels: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
         datasets: [{
-          data: WORKOUT_WEEK,
-          backgroundColor: WORKOUT_WEEK.map((v) => (v ? CHART_COLORS.teal : 'rgba(255,255,255,0.08)')),
+          data: workoutWeek,
+          backgroundColor: workoutWeek.map((v) => (v ? CHART_COLORS.teal : 'rgba(255,255,255,0.08)')),
           borderRadius: 6,
           barPercentage: 0.65,
           categoryPercentage: 0.8,
@@ -133,7 +145,7 @@ function Stats() {
       },
     });
     return () => chart.destroy();
-  }, []);
+  }, [todaySummary]);
 
   useEffect(() => {
     if (!proportionsRef.current) return;
@@ -255,7 +267,7 @@ function Stats() {
               <button type="button" className={`stats-period-btn ${chartPeriod === 'month' ? 'stats-period-btn--active' : ''}`} onClick={() => setChartPeriod('month')}>Tháng</button>
             </div>
           </div>
-          <p className="stats-chart-sub">Vòng eo (cm) theo thời gian</p>
+          <p className="stats-chart-sub">Vòng eo (cm) — điểm cuối từ hồ sơ nếu có</p>
           <div className="stats-chart-container stats-chart-container--line">
             <canvas ref={bodyCompRef} />
           </div>

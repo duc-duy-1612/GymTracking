@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '../context/UserContext';
+import userService from '../services/userService';
+import toast from 'react-hot-toast';
 
 const PREF_KEY = 'healthflow_settings';
 
@@ -24,6 +26,12 @@ function Settings() {
     theme: 'dark',
     notifications: true,
   });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   useEffect(() => {
     const stored = loadPrefs();
@@ -36,6 +44,36 @@ function Settings() {
       savePrefs(next);
       return next;
     });
+  };
+
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPassword.length < 6) {
+      toast.error('Mật khẩu mới tối thiểu 6 ký tự');
+      return;
+    }
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('Mật khẩu mới và xác nhận không khớp');
+      return;
+    }
+    setPasswordSaving(true);
+    try {
+      await userService.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      toast.success('Đã đổi mật khẩu thành công');
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Đổi mật khẩu thất bại');
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   return (
@@ -103,6 +141,59 @@ function Settings() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="profile-form-actions" style={{ borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '1.5rem', marginTop: '1.5rem' }}>
+            <h3 className="profile-title" style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Đổi mật khẩu</h3>
+            <form onSubmit={handlePasswordSubmit} className="profile-form">
+              <div className="profile-form-grid">
+                <div className="profile-form-col">
+                  <div className="mb-3">
+                    <label className="form-label">Mật khẩu hiện tại</label>
+                    <input
+                      type="password"
+                      name="currentPassword"
+                      className="form-control"
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordChange}
+                      required
+                      autoComplete="current-password"
+                    />
+                  </div>
+                </div>
+                <div className="profile-form-col">
+                  <div className="mb-3">
+                    <label className="form-label">Mật khẩu mới</label>
+                    <input
+                      type="password"
+                      name="newPassword"
+                      className="form-control"
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordChange}
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                    />
+                    <p className="form-hint">Tối thiểu 6 ký tự</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Xác nhận mật khẩu mới</label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  className="form-control"
+                  value={passwordForm.confirmPassword}
+                  onChange={handlePasswordChange}
+                  required
+                  autoComplete="new-password"
+                />
+              </div>
+              <button type="submit" className="btn btn-fitbit profile-save-btn" disabled={passwordSaving}>
+                {passwordSaving ? 'Đang xử lý...' : 'Đổi mật khẩu'}
+              </button>
+            </form>
           </div>
         </div>
       </div>

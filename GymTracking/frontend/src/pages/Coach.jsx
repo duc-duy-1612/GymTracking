@@ -3,9 +3,10 @@ import { useState, useRef, useEffect } from 'react';
 const COPIES = 3;
 
 const FILTERS = [
-  { id: 'running', label: 'Running', icon: 'bi bi-person-running' },
-  { id: 'strength', label: 'Strength', icon: 'bi bi-dumbbell' },
-  { id: 'mindful', label: 'Mindful', icon: 'bi bi-brain' },
+  { id: 'all', label: 'Tất cả', icon: 'bi bi-grid-3x3-gap' },
+  { id: 'running', label: 'Chạy bộ', icon: 'bi bi-person-running' },
+  { id: 'strength', label: 'Sức mạnh', icon: 'bi bi-dumbbell' },
+  { id: 'mindful', label: 'Chánh niệm', icon: 'bi bi-brain' },
   { id: 'cardio', label: 'Cardio', icon: 'bi bi-heart-pulse' },
   { id: 'yoga', label: 'Yoga', icon: 'bi bi-flower2' },
   { id: 'mobility', label: 'Mobility & recovery', icon: 'bi bi-arrow-repeat' },
@@ -16,27 +17,27 @@ const FILTERS = [
 ];
 
 const PELOTON_ITEMS = [
-  { title: 'Peloton: Evening Mobility with Kirra Michel', duration: '20 min', type: 'Workout', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=240&fit=crop' },
-  { title: 'Peloton Adrian Williams: HIIT', duration: '10 min', type: 'Workout', image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=240&fit=crop' },
-  { title: 'Peloton: Morning Stretch', duration: '15 min', type: 'Stretch', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
+  { title: 'Peloton: Evening Mobility with Kirra Michel', duration: '20 min', type: 'Workout', category: 'mobility', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=240&fit=crop' },
+  { title: 'Peloton Adrian Williams: HIIT', duration: '10 min', type: 'Workout', category: 'cardio', image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=240&fit=crop' },
+  { title: 'Peloton: Morning Stretch', duration: '15 min', type: 'Stretch', category: 'mobility', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
 ];
 
 const SLEEP_ITEMS = [
-  { title: 'Relax from head to toe', duration: '22 min', type: 'Mindfulness', image: 'https://images.unsplash.com/photo-1541783245831-57d6fb0926d3?w=400&h=240&fit=crop' },
-  { title: 'Comfort sounds for sleep', duration: '5 min', type: 'Mindfulness', image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=400&h=240&fit=crop' },
-  { title: 'Deep sleep meditation', duration: '30 min', type: 'Mindfulness', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=240&fit=crop' },
+  { title: 'Relax from head to toe', duration: '22 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1541783245831-57d6fb0926d3?w=400&h=240&fit=crop' },
+  { title: 'Comfort sounds for sleep', duration: '5 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=400&h=240&fit=crop' },
+  { title: 'Deep sleep meditation', duration: '30 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=240&fit=crop' },
 ];
 
 const STRESS_ITEMS = [
-  { title: 'How to calm down', duration: '5 min', type: 'Mindfulness', image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=240&fit=crop' },
-  { title: '2-minute breathing', duration: '2 min', type: 'Mindfulness', image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=240&fit=crop' },
-  { title: 'Quick stress relief', duration: '10 min', type: 'Mindfulness', image: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=400&h=240&fit=crop' },
+  { title: 'How to calm down', duration: '5 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=240&fit=crop' },
+  { title: '2-minute breathing', duration: '2 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=240&fit=crop' },
+  { title: 'Quick stress relief', duration: '10 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=400&h=240&fit=crop' },
 ];
 
 const FITNESS_ITEMS = [
-  { title: 'Wheelchair med ball cardio', duration: '18 min', type: 'Workout', image: 'https://tse1.mm.bing.net/th/id/OIP.vbVq3bGXq_IcmozP-IEikgHaEK?pid=Api&P=0&h=180' },
-  { title: 'Peloton: Full body strength', duration: '20 min', type: 'Workout', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=240&fit=crop' },
-  { title: 'Yoga for beginners', duration: '25 min', type: 'Yoga', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
+  { title: 'Wheelchair med ball cardio', duration: '18 min', type: 'Workout', category: 'cardio', image: 'https://tse1.mm.bing.net/th/id/OIP.vbVq3bGXq_IcmozP-IEikgHaEK?pid=Api&P=0&h=180' },
+  { title: 'Peloton: Full body strength', duration: '20 min', type: 'Workout', category: 'strength', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=240&fit=crop' },
+  { title: 'Yoga for beginners', duration: '25 min', type: 'Yoga', category: 'yoga', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
 ];
 
 const INSTRUCTORS = [
@@ -76,11 +77,24 @@ function CoachSection({ title, children }) {
     <section className="coach-section">
       <div className="coach-section-header">
         <h2 className="coach-section-title">{title}</h2>
-        <button type="button" className="coach-see-all">See all</button>
+        <button type="button" className="coach-see-all">Xem tất cả</button>
       </div>
       <div className="coach-card-row">{children}</div>
     </section>
   );
+}
+
+function filterItems(items, filterId, query) {
+  if (!items || !items.length) return [];
+  let out = items;
+  if (filterId && filterId !== 'all') {
+    out = out.filter((item) => item.category === filterId);
+  }
+  if (query && query.trim()) {
+    const q = query.trim().toLowerCase();
+    out = out.filter((item) => item.title.toLowerCase().includes(q));
+  }
+  return out;
 }
 
 function CoachCard({ item }) {
@@ -100,7 +114,8 @@ function CoachCard({ item }) {
 }
 
 function Coach() {
-  const [activeFilter, setActiveFilter] = useState('running');
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [seeAllModal, setSeeAllModal] = useState(null);
   const instructorsCarouselRef = useRef(null);
   const brandsCarouselRef = useRef(null);
@@ -176,6 +191,11 @@ function Coach() {
     };
   }, [BRANDS.length]);
 
+  const pelotonFiltered = filterItems(PELOTON_ITEMS, activeFilter, searchQuery);
+  const sleepFiltered = filterItems(SLEEP_ITEMS, activeFilter, searchQuery);
+  const stressFiltered = filterItems(STRESS_ITEMS, activeFilter, searchQuery);
+  const fitnessFiltered = filterItems(FITNESS_ITEMS, activeFilter, searchQuery);
+
   return (
     <div className="coach-page">
       <div className="coach-filters">
@@ -192,34 +212,53 @@ function Coach() {
         ))}
       </div>
 
-      <CoachSection title="Peloton classes">
-        {PELOTON_ITEMS.map((item, i) => (
-          <CoachCard key={i} item={item} />
-        ))}
-      </CoachSection>
+      <div className="coach-search-wrap">
+        <i className="bi bi-search coach-search-icon" />
+        <input
+          type="text"
+          className="coach-search-input"
+          placeholder="Tìm lớp, chủ đề..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
 
-      <CoachSection title="Sleep better">
-        {SLEEP_ITEMS.map((item, i) => (
-          <CoachCard key={i} item={item} />
-        ))}
-      </CoachSection>
+      {pelotonFiltered.length > 0 && (
+        <CoachSection title="Lớp Peloton">
+          {pelotonFiltered.map((item, i) => (
+            <CoachCard key={item.title + i} item={item} />
+          ))}
+        </CoachSection>
+      )}
 
-      <CoachSection title="Stress less">
-        {STRESS_ITEMS.map((item, i) => (
-          <CoachCard key={i} item={item} />
-        ))}
-      </CoachSection>
+      {sleepFiltered.length > 0 && (
+        <CoachSection title="Ngủ ngon hơn">
+          {sleepFiltered.map((item, i) => (
+            <CoachCard key={item.title + i} item={item} />
+          ))}
+        </CoachSection>
+      )}
 
-      <CoachSection title="Find your fitness">
-        {FITNESS_ITEMS.map((item, i) => (
-          <CoachCard key={i} item={item} />
-        ))}
-      </CoachSection>
+      {stressFiltered.length > 0 && (
+        <CoachSection title="Giảm căng thẳng">
+          {stressFiltered.map((item, i) => (
+            <CoachCard key={item.title + i} item={item} />
+          ))}
+        </CoachSection>
+      )}
+
+      {fitnessFiltered.length > 0 && (
+        <CoachSection title="Tìm phong cách tập">
+          {fitnessFiltered.map((item, i) => (
+            <CoachCard key={item.title + i} item={item} />
+          ))}
+        </CoachSection>
+      )}
 
       <section className="coach-section">
         <div className="coach-section-header">
-          <h2 className="coach-section-title">Instructors</h2>
-          <button type="button" className="coach-see-all" onClick={() => setSeeAllModal('instructors')}>See all</button>
+          <h2 className="coach-section-title">Huấn luyện viên</h2>
+          <button type="button" className="coach-see-all" onClick={() => setSeeAllModal('instructors')}>Xem tất cả</button>
         </div>
         <div className="coach-carousel-wrap">
           <button type="button" className="coach-carousel-btn coach-carousel-btn--prev" onClick={() => carouselPrev(instructorsCarouselRef)} aria-label="Trước">
@@ -246,8 +285,8 @@ function Coach() {
 
       <section className="coach-section">
         <div className="coach-section-header">
-          <h2 className="coach-section-title">Brands</h2>
-          <button type="button" className="coach-see-all" onClick={() => setSeeAllModal('brands')}>See all</button>
+          <h2 className="coach-section-title">Thương hiệu</h2>
+          <button type="button" className="coach-see-all" onClick={() => setSeeAllModal('brands')}>Xem tất cả</button>
         </div>
         <div className="coach-carousel-wrap">
           <button type="button" className="coach-carousel-btn coach-carousel-btn--prev" onClick={() => carouselPrev(brandsCarouselRef)} aria-label="Trước">
@@ -273,7 +312,7 @@ function Coach() {
         <div className="coach-modal-overlay" onClick={() => setSeeAllModal(null)} role="presentation">
           <div className="coach-modal" onClick={(e) => e.stopPropagation()}>
             <div className="coach-modal-header">
-              <h3 className="coach-modal-title">{seeAllModal === 'instructors' ? 'Instructors' : 'Brands'}</h3>
+              <h3 className="coach-modal-title">{seeAllModal === 'instructors' ? 'Huấn luyện viên' : 'Thương hiệu'}</h3>
               <button type="button" className="coach-modal-close" onClick={() => setSeeAllModal(null)} aria-label="Đóng">
                 <i className="bi bi-x-lg" />
               </button>

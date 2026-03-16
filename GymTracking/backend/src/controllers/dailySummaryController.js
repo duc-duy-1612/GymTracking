@@ -45,4 +45,28 @@ const updateToday = async (req, res) => {
   }
 };
 
-module.exports = { getToday, updateToday };
+const getHistory = async (req, res) => {
+  try {
+    const { from, to, days } = req.query;
+    let start = getStartOfDay(new Date());
+    let end = getStartOfDay(new Date());
+    if (days && Number(days) > 0) {
+      const n = Math.min(Number(days), 90);
+      start.setUTCDate(start.getUTCDate() - n + 1);
+    } else if (from && to) {
+      start = getStartOfDay(new Date(from));
+      end = getStartOfDay(new Date(to));
+    } else {
+      start.setUTCDate(start.getUTCDate() - 6);
+    }
+    const summaries = await DailySummary.find({
+      userId: req.user._id,
+      date: { $gte: start, $lte: end },
+    }).sort({ date: -1 });
+    res.json(summaries);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getToday, updateToday, getHistory };

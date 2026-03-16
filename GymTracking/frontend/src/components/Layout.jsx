@@ -1,5 +1,5 @@
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
 
 function Layout({ children }) {
@@ -32,10 +32,29 @@ function Layout({ children }) {
   };
   const pageTitle = pageTitles[location.pathname] ?? 'Today';
 
+  const [fabOpen, setFabOpen] = useState(false);
+  const fabWrapRef = useRef(null);
+
+  useEffect(() => {
+    if (!fabOpen) return;
+    const onDocClick = (e) => {
+      if (fabWrapRef.current && !fabWrapRef.current.contains(e.target)) setFabOpen(false);
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [fabOpen]);
+
   const logout = () => {
     localStorage.removeItem('token');
     navigate('/');
   };
+
+  const fabActions = [
+    { to: '/today', label: 'Thêm nước / Xem hôm nay', icon: 'bi-droplet-half' },
+    { to: '/nutrition', label: 'Thêm bữa ăn', icon: 'bi-egg-fried' },
+    { to: '/sleep', label: 'Log giấc ngủ', icon: 'bi-moon-stars' },
+    { to: '/workout', label: 'Đánh dấu đã tập', icon: 'bi-lightning' },
+  ];
 
   return (
     <div className="app-wrapper">
@@ -70,34 +89,55 @@ function Layout({ children }) {
 
       <main className="app-main">
         <header className="top-bar">
-          <div className="top-bar-left">
-            <div className="device-icon"><i className="bi bi-phone" /></div>
-          </div>
           <div className="top-bar-center">
             <div className="brand">HealthFlow</div>
             <div className="view-label">{pageTitle}</div>
             <div className="header-date">{headerDate}</div>
           </div>
           <div className="top-bar-right">
-            {user?.name && (
-              <Link to="/profile" className="top-bar-user-name" title="Hồ sơ">
-                {user.name}
-              </Link>
-            )}
+            {user?.name && <span className="top-bar-user-name">{user.name}</span>}
+            <Link to="/profile" className="icon-btn icon-btn--user" title="Hồ sơ – Chỉnh sửa chỉ số cá nhân">
+              <i className="bi bi-person-circle" />
+            </Link>
             <Link to="/settings" className="icon-btn" title="Cài đặt">
               <i className="bi bi-gear" />
             </Link>
-            <button type="button" className="icon-btn" title="Đăng xuất" onClick={logout}><i className="bi bi-box-arrow-right" /></button>
+            <button type="button" className="icon-btn" title="Đăng xuất" onClick={logout}>
+              <i className="bi bi-box-arrow-right" />
+            </button>
           </div>
         </header>
 
-        <div className={`content-area ${['/today', '/workout', '/coach', '/stats', '/profile'].includes(location.pathname) ? 'content-area--wide' : ''}`}>
+        <div className={`content-area ${['/today', '/workout', '/coach', '/stats', '/profile', '/nutrition', '/sleep', '/history'].includes(location.pathname) ? 'content-area--wide' : ''}`}>
           {children}
         </div>
 
-        <button type="button" className="fab" title="Thêm dữ liệu">
-          <i className="bi bi-plus-lg" />
-        </button>
+        <div className="fab-wrap" ref={fabWrapRef}>
+          {fabOpen && (
+            <div className="fab-menu">
+              {fabActions.map((action) => (
+                <Link
+                  key={action.to}
+                  to={action.to}
+                  className="fab-menu-item"
+                  onClick={() => setFabOpen(false)}
+                >
+                  <i className={`bi ${action.icon}`} />
+                  <span>{action.label}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            className="fab"
+            title="Thêm dữ liệu"
+            onClick={() => setFabOpen((v) => !v)}
+            aria-expanded={fabOpen}
+          >
+            <i className="bi bi-plus-lg" />
+          </button>
+        </div>
       </main>
     </div>
   );

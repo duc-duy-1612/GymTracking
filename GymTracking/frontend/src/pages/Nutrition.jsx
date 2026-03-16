@@ -57,9 +57,11 @@ function Nutrition() {
 
   if (loading) {
     return (
-      <div className="today-sections">
+      <div className="nutrition-page">
+        <h1 className="page-full-title">Dinh dưỡng</h1>
+        <div className="today-sections">
         <section className="today-section">
-          <h2 className="today-section-title">Dinh dưỡng</h2>
+          <h2 className="today-section-title">Đang tải...</h2>
           <div className="today-cards today-cards--1col">
             <div className="fitbit-card card-dark">
               <div className="skeleton-block" style={{ height: 24, width: '40%', marginBottom: 12 }} />
@@ -68,11 +70,14 @@ function Nutrition() {
             </div>
           </div>
         </section>
+        </div>
       </div>
     );
   }
 
   return (
+    <div className="nutrition-page">
+      <h1 className="page-full-title">Dinh dưỡng</h1>
     <div className="today-sections">
       <section className="today-section">
         <h2 className="today-section-title">Tổng quan hôm nay</h2>
@@ -181,6 +186,7 @@ function Nutrition() {
           </div>
         </div>
       </section>
+    </div>
     </div>
   );
 }

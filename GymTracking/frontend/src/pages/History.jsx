@@ -2,48 +2,92 @@ import { useEffect, useState } from 'react';
 import dailySummaryService from '../services/dailySummaryService';
 import toast from 'react-hot-toast';
 
-// Hiện backend mới có API /today, nên phần danh sách 7 ngày dùng dữ liệu mô phỏng
-// nhưng thể hiện rõ ý tưởng lịch sử tiến độ.
-const MOCK_DAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-const MOCK_HISTORY = [
-  { label: 'Hôm nay', calories: null, water: null, exercised: null },
-  { label: 'Hôm qua', calories: 1850, water: 1800, exercised: true },
-  { label: '-2 ngày', calories: 2100, water: 1500, exercised: false },
-  { label: '-3 ngày', calories: 1720, water: 2000, exercised: true },
-];
+const WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+function formatDateKey(d) {
+  const x = new Date(d);
+  x.setUTCHours(0, 0, 0, 0);
+  return x.getTime();
+}
+
+function getDayIndex(date) {
+  return new Date(date).getDay();
+}
 
 function History() {
   const [today, setToday] = useState(null);
+  const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    dailySummaryService.getToday()
-      .then((res) => setToday(res.data))
-      .catch(() => toast.error('Không tải được dữ liệu hôm nay'))
+    Promise.all([
+      dailySummaryService.getToday().then((r) => r.data),
+      dailySummaryService.getHistory({ days: 7 }).then((r) => r.data),
+    ])
+      .then(([todayData, historyData]) => {
+        setToday(todayData);
+        setHistory(Array.isArray(historyData) ? historyData : []);
+      })
+      .catch(() => {
+        toast.error('Không tải được dữ liệu lịch sử');
+        setToday(null);
+        setHistory([]);
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  const todayCalories = today?.caloriesConsumed ?? 0;
-  const todayWater = today?.waterMl ?? 0;
-  const todayExercise = today?.exercisedToday ?? false;
+  const historyByDate = {};
+  history.forEach((s) => {
+    const key = formatDateKey(s.date);
+    historyByDate[key] = s;
+  });
+
+  const todayIndex = new Date().getDay();
+  const todayKey = formatDateKey(new Date());
+  const todayData = today ?? historyByDate[todayKey];
+  const todayCalories = todayData?.caloriesConsumed ?? 0;
+  const todayWater = todayData?.waterMl ?? 0;
+  const todayExercise = todayData?.exercisedToday ?? false;
+  const todaySleep = todayData?.sleepMinutes;
+  const hasActivityToday = todayCalories > 0 || todayWater > 0 || todayExercise || (todaySleep != null && todaySleep > 0);
+
+  const last7Days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() - i);
+    d.setUTCHours(0, 0, 0, 0);
+    const key = d.getTime();
+    last7Days.push({ date: d, key, summary: historyByDate[key] });
+  }
+  last7Days.reverse();
+
+  const hasActivity = (summary) => {
+    if (!summary) return false;
+    return (summary.caloriesConsumed ?? 0) > 0 || (summary.waterMl ?? 0) > 0 || summary.exercisedToday || (summary.sleepMinutes != null && summary.sleepMinutes > 0);
+  };
 
   if (loading) {
     return (
-      <div className="today-sections">
-        <section className="today-section">
-          <h2 className="today-section-title">Lịch sử</h2>
-          <div className="today-cards today-cards--1col">
-            <div className="fitbit-card card-dark">
-              <div className="skeleton-block" style={{ height: 32, width: '40%', marginBottom: 16 }} />
-              <div className="skeleton-block" style={{ height: 80, width: '100%' }} />
+      <div className="history-page">
+        <h1 className="page-full-title">Lịch sử</h1>
+        <div className="today-sections">
+          <section className="today-section">
+            <h2 className="today-section-title">Đang tải...</h2>
+            <div className="today-cards today-cards--1col">
+              <div className="fitbit-card card-dark">
+                <div className="skeleton-block" style={{ height: 32, width: '40%', marginBottom: 16 }} />
+                <div className="skeleton-block" style={{ height: 80, width: '100%' }} />
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </div>
     );
   }
 
   return (
+    <div className="history-page">
+      <h1 className="page-full-title">Lịch sử</h1>
     <div className="today-sections">
       <section className="today-section">
         <h2 className="today-section-title">Tổng quan hôm nay</h2>
@@ -51,16 +95,16 @@ function History() {
           <div className="fitbit-card">
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Calories</p>
-              <p className="fitbit-card-value">{(todayCalories ?? 0).toLocaleString()} cal</p>
-              <p className="fitbit-card-sub">Từ thẻ Today / Nutrition</p>
+              <p className="fitbit-card-value">{todayCalories.toLocaleString()} cal</p>
+              <p className="fitbit-card-sub">Từ Nutrition / Today</p>
             </div>
             <div className="fitbit-card-icon"><i className="bi bi-apple" /></div>
           </div>
           <div className="fitbit-card">
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Nước</p>
-              <p className="fitbit-card-value">{(todayWater ?? 0).toLocaleString()} ml</p>
-              <p className="fitbit-card-sub">Từ thẻ Today / Water</p>
+              <p className="fitbit-card-value">{todayWater.toLocaleString()} ml</p>
+              <p className="fitbit-card-sub">Từ Today</p>
             </div>
             <div className="fitbit-card-icon blue"><i className="bi bi-droplet-half" /></div>
           </div>
@@ -68,7 +112,7 @@ function History() {
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Tập luyện</p>
               <p className="fitbit-card-value">{todayExercise ? 'Đã tập' : 'Chưa tập'}</p>
-              <p className="fitbit-card-sub">Dữ liệu demo từ DailySummary</p>
+              <p className="fitbit-card-sub">Từ Workout / Today</p>
             </div>
             <div className="fitbit-card-icon"><i className="bi bi-activity" /></div>
           </div>
@@ -76,44 +120,58 @@ function History() {
       </section>
 
       <section className="today-section">
-        <h2 className="today-section-title">7 ngày gần đây (demo)</h2>
+        <h2 className="today-section-title">Tuần này</h2>
         <div className="today-cards today-cards--1col">
           <div className="fitbit-card card-dark">
             <div className="history-week-grid">
-              {MOCK_DAYS.map((d) => (
-                <div key={d} className="history-week-col">
-                  <span className="history-week-day">{d}</span>
-                  <span className="history-week-dot" />
-                </div>
-              ))}
+              {last7Days.map(({ date, summary }) => {
+                const dayIdx = getDayIndex(date);
+                const isToday = date.getTime() === todayKey;
+                const active = hasActivity(summary);
+                return (
+                  <div key={date.getTime()} className={`history-week-col ${isToday ? 'history-week-col--today' : ''}`}>
+                    <span className="history-week-day">{WEEKDAY_LABELS[dayIdx]}</span>
+                    <span className={`history-week-dot ${active ? 'history-week-dot--filled' : ''}`} />
+                  </div>
+                );
+              })}
             </div>
-            <p className="fitbit-card-sub" style={{ marginTop: 8 }}>
-              Các điểm tròn minh họa trạng thái hoạt động trong tuần. Có thể mở rộng để lấy dữ liệu thật từ backend.
+            <p className="form-hint" style={{ marginTop: 10, marginBottom: 0 }}>
+              Cột highlight là hôm nay. Chấm sáng = có dữ liệu (calo, nước, tập hoặc ngủ) từ API lịch sử.
             </p>
           </div>
         </div>
       </section>
 
       <section className="today-section">
-        <h2 className="today-section-title">Nhật ký gần đây (demo)</h2>
+        <h2 className="today-section-title">Nhật ký 7 ngày gần đây</h2>
         <div className="today-cards today-cards--1col">
           <div className="fitbit-card card-dark history-list">
-            {MOCK_HISTORY.map((item) => (
-              <div key={item.label} className="history-list-row">
-                <div className="history-list-label">{item.label}</div>
-                <div className="history-list-values">
-                  <span>Calories: {item.calories != null ? `${item.calories} cal` : `${todayCalories} cal (hôm nay)`}</span>
-                  <span>Nước: {item.water != null ? `${item.water} ml` : `${todayWater} ml (hôm nay)`}</span>
-                  <span>Tập luyện: {item.exercised != null ? (item.exercised ? 'Có' : 'Không') : (todayExercise ? 'Có' : 'Không')}</span>
+            {last7Days.map(({ date, summary }) => {
+              const isToday = date.getTime() === todayKey;
+              const label = isToday ? 'Hôm nay' : date.toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'short' });
+              const cal = summary?.caloriesConsumed ?? 0;
+              const water = summary?.waterMl ?? 0;
+              const exercised = summary?.exercisedToday ?? false;
+              const sleep = summary?.sleepMinutes;
+              return (
+                <div key={date.getTime()} className={`history-list-row ${isToday ? 'history-list-row--today' : ''}`}>
+                  <div className="history-list-label">{label}</div>
+                  <div className="history-list-values">
+                    <span>Calories: {cal} cal</span>
+                    <span>Nước: {water} ml</span>
+                    <span>Tập: {exercised ? 'Có' : 'Chưa'}</span>
+                    {sleep != null && sleep > 0 && <span>Ngủ: {Math.floor(sleep / 60)}h{sleep % 60 ? ` ${sleep % 60}m` : ''}</span>}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
+    </div>
     </div>
   );
 }
 
 export default History;
-
