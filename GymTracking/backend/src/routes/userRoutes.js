@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { createOrUpdateUser } = require('../controllers/userController');
+const { getMe, updateProfile } = require('../controllers/userController');
+const { protect } = require('../middlewares/authMiddleware');
 
-// Route POST: /api/users
-router.post('/', createOrUpdateUser);
+router.get('/me', protect, getMe);
+router.put('/me', protect, updateProfile);
 
 module.exports = router;

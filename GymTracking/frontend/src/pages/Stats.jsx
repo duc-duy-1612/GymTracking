@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Chart from 'chart.js/auto';
+import { useUser } from '../context/UserContext';
 
 const CHART_COLORS = {
   teal: '#00B0B9',
@@ -8,14 +9,10 @@ const CHART_COLORS = {
   doughnut: ['#00B0B9', '#6b7280', '#4b5563', '#374151'],
 };
 
-const USER_STATS = {
-  name: 'User',
-  bmi: 22.7,
-  height: 160,
-  weight: 58,
-  targetWeight: 55,
-  targetBmi: 21.5,
-};
+function calcBmi(weightKg, heightCm) {
+  if (!weightKg || !heightCm || heightCm <= 0) return null;
+  return (weightKg / ((heightCm / 100) ** 2)).toFixed(1);
+}
 
 const BODY_COMP_DATA = {
   labels: ['Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7'],
@@ -32,11 +29,26 @@ const PROPORTIONS = [
 ];
 
 function Stats() {
+  const { user, loading: userLoading } = useUser();
   const [muscleMapGender, setMuscleMapGender] = useState('female');
   const [chartPeriod, setChartPeriod] = useState('month');
   const bodyCompRef = useRef(null);
   const workoutChartRef = useRef(null);
   const proportionsRef = useRef(null);
+
+  const weight = user?.measurements?.weight;
+  const height = user?.measurements?.height;
+  const targetWeight = user?.goals?.targetWeight;
+  const bmi = user?.autoStats?.bmi ?? (weight && height ? calcBmi(weight, height) : null);
+  const targetBmi = user?.autoStats?.targetBmi ?? (targetWeight != null && height ? calcBmi(targetWeight, height) : null);
+  const userStatsRows = [
+    { icon: 'bi-person', label: 'Tên', value: user?.name ?? '—' },
+    { icon: 'bi-person-badge', label: 'BMI', value: bmi ?? '—' },
+    { icon: 'bi-rulers', label: 'Chiều cao', value: height != null ? `${height} cm` : '—' },
+    { icon: 'bi-speedometer2', label: 'Cân nặng', value: weight != null ? `${weight} kg` : '—' },
+    { icon: 'bi-bullseye', label: 'Mục tiêu cân nặng', value: targetWeight != null ? `${targetWeight} kg` : '—' },
+    { icon: 'bi-heart-half', label: 'Mục tiêu BMI', value: targetBmi ?? '—' },
+  ];
 
   useEffect(() => {
     if (!bodyCompRef.current) return;
@@ -159,6 +171,30 @@ function Stats() {
 
   const focusGroupLabel = muscleMapGender === 'female' ? 'Lower Body & Core' : 'Upper Body & Core';
 
+  if (userLoading && !user) {
+    return (
+      <div className="stats-page">
+        <h1 className="stats-page-title">Thống kê tiến độ</h1>
+        <div className="stats-row stats-row--top">
+          <div className="stats-user-card fitbit-card stats-user-card--skeleton">
+            <div className="stats-user-grid">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="stats-user-item">
+                  <div className="skeleton-block" style={{ width: 32, height: 32, borderRadius: 8 }} />
+                  <div className="skeleton-block" style={{ width: 60, height: 14 }} />
+                  <div className="skeleton-block" style={{ width: 48, height: 18 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="stats-muscle-card fitbit-card">
+            <div className="skeleton-block" style={{ height: 200, borderRadius: 14 }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="stats-page">
       <h1 className="stats-page-title">Thống kê tiến độ</h1>
@@ -166,14 +202,7 @@ function Stats() {
       <div className="stats-row stats-row--top">
         <div className="stats-user-card fitbit-card">
           <div className="stats-user-grid">
-            {[
-              { icon: 'bi-person', label: 'Tên', value: USER_STATS.name },
-              { icon: 'bi-person-badge', label: 'BMI', value: USER_STATS.bmi },
-              { icon: 'bi-rulers', label: 'Chiều cao', value: `${USER_STATS.height} cm` },
-              { icon: 'bi-speedometer2', label: 'Cân nặng', value: `${USER_STATS.weight} kg` },
-              { icon: 'bi-bullseye', label: 'Mục tiêu cân nặng', value: `${USER_STATS.targetWeight} kg` },
-              { icon: 'bi-heart-half', label: 'Mục tiêu BMI', value: USER_STATS.targetBmi },
-            ].map((item, i) => (
+            {userStatsRows.map((item, i) => (
               <div key={i} className="stats-user-item">
                 <div className="stats-user-icon"><i className={`bi ${item.icon}`} /></div>
                 <span className="stats-user-label">{item.label}</span>

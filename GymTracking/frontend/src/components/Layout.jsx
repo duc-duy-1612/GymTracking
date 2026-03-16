@@ -1,9 +1,11 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { useUser } from '../context/UserContext';
 
 function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, fetchUser } = useUser();
   const [headerDate, setHeaderDate] = useState('');
 
   useEffect(() => {
@@ -11,7 +13,24 @@ function Layout({ children }) {
     setHeaderDate(new Date().toLocaleDateString('vi-VN', options));
   }, []);
 
-  const pageTitle = location.pathname === '/stats' ? 'Thống kê' : 'Today';
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const protectedPaths = ['/today', '/workout', '/coach', '/stats', '/profile', '/nutrition', '/sleep', '/history', '/settings'];
+    if (protectedPaths.includes(location.pathname)) fetchUser();
+  }, [location.pathname, fetchUser]);
+
+  const pageTitles = {
+    '/stats': 'Thống kê',
+    '/workout': 'Bài tập',
+    '/coach': 'Coach',
+    '/profile': 'Hồ sơ',
+    '/nutrition': 'Dinh dưỡng',
+    '/sleep': 'Giấc ngủ',
+    '/history': 'Lịch sử',
+    '/settings': 'Cài đặt',
+  };
+  const pageTitle = pageTitles[location.pathname] ?? 'Today';
 
   const logout = () => {
     localStorage.removeItem('token');
@@ -37,6 +56,15 @@ function Layout({ children }) {
           <NavLink to="/stats" className={({ isActive }) => (isActive ? 'active-link' : '')} title="Thống kê">
             <i className="bi bi-bar-chart-line" />
           </NavLink>
+          <NavLink to="/nutrition" className={({ isActive }) => (isActive ? 'active-link' : '')} title="Dinh dưỡng">
+            <i className="bi bi-egg-fried" />
+          </NavLink>
+          <NavLink to="/sleep" className={({ isActive }) => (isActive ? 'active-link' : '')} title="Giấc ngủ">
+            <i className="bi bi-moon-stars" />
+          </NavLink>
+          <NavLink to="/history" className={({ isActive }) => (isActive ? 'active-link' : '')} title="Lịch sử">
+            <i className="bi bi-clock-history" />
+          </NavLink>
         </nav>
       </aside>
 
@@ -51,12 +79,19 @@ function Layout({ children }) {
             <div className="header-date">{headerDate}</div>
           </div>
           <div className="top-bar-right">
-            <button type="button" className="icon-btn" title="Thông báo"><i className="bi bi-bell" /></button>
+            {user?.name && (
+              <Link to="/profile" className="top-bar-user-name" title="Hồ sơ">
+                {user.name}
+              </Link>
+            )}
+            <Link to="/settings" className="icon-btn" title="Cài đặt">
+              <i className="bi bi-gear" />
+            </Link>
             <button type="button" className="icon-btn" title="Đăng xuất" onClick={logout}><i className="bi bi-box-arrow-right" /></button>
           </div>
         </header>
 
-        <div className={`content-area ${['/today', '/workout', '/coach', '/stats'].includes(location.pathname) ? 'content-area--wide' : ''}`}>
+        <div className={`content-area ${['/today', '/workout', '/coach', '/stats', '/profile'].includes(location.pathname) ? 'content-area--wide' : ''}`}>
           {children}
         </div>
 

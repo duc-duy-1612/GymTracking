@@ -1,4 +1,13 @@
+import dailySummaryService from '../services/dailySummaryService';
+import toast from 'react-hot-toast';
+
 function Workout() {
+  const handleStartSet = () => {
+    dailySummaryService.updateToday({ exercisedToday: true })
+      .then(() => toast.success('Đã đánh dấu hôm nay đã tập luyện'))
+      .catch(() => toast.error('Không cập nhật được trạng thái tập luyện'));
+  };
+
   return (
     <div className="workout-page">
       <div className="workout-grid">
@@ -37,9 +46,9 @@ function Workout() {
         </div>
         <div className="workout-timer card-dark">
           <h5 className="workout-timer-title"><i className="bi bi-stopwatch" /> Timer</h5>
-          <p className="workout-timer-label text-muted">Thời gian thực hiện</p>
+          <p className="workout-timer-label text-muted">Thời gian thực hiện (demo)</p>
           <p className="workout-timer-value">01:30</p>
-          <button type="button" className="btn btn-fitbit w-100">Bắt đầu Set</button>
+          <button type="button" className="btn btn-fitbit w-100" onClick={handleStartSet}>Bắt đầu Set</button>
         </div>
       </div>
     </div>

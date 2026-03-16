@@ -1,17 +1,19 @@
 const express = require('express');
 const cors = require('cors');
+const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const dailySummaryRoutes = require('./routes/dailySummaryRoutes');
 // const workoutRoutes = require('./routes/workoutRoutes');
 // const nutritionRoutes = require('./routes/nutritionRoutes');
 
 const app = express();
 
-// Middlewares
-app.use(express.json()); // Cho phép đọc dữ liệu JSON gửi lên
+app.use(express.json());
 app.use(cors());
 
-// Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/daily-summaries', dailySummaryRoutes);
 // app.use('/api/workouts', workoutRoutes);
 // app.use('/api/nutrition', nutritionRoutes);
 

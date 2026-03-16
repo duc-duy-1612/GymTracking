@@ -17,6 +17,18 @@
 * { box-sizing: border-box; }
 body { margin: 0; padding: 0; overflow-x: hidden; background: var(--fitbit-bg); font-family: var(--font); color: var(--fitbit-text); }
 
+.skeleton-block {
+  display: block;
+  background: linear-gradient(90deg, var(--fitbit-surface) 25%, var(--fitbit-card) 50%, var(--fitbit-surface) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  border-radius: 6px;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .app-wrapper { display: flex; height: 100vh; width: 100vw; }
 .app-sidebar {
   width: 88px; min-width: 88px;
@@ -70,6 +82,16 @@ body { margin: 0; padding: 0; overflow-x: hidden; background: var(--fitbit-bg); 
   color: var(--fitbit-muted); font-size: 1.25rem; cursor: pointer; transition: color 0.2s, background 0.2s;
 }
 .top-bar .icon-btn:hover { color: #fff; background: var(--fitbit-card); }
+.top-bar-user-name {
+  font-size: 0.875rem;
+  color: var(--fitbit-muted);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.top-bar-user-name:hover { color: #fff; }
 
 .content-area {
   padding: 16px 20px 56px;
@@ -148,10 +170,19 @@ body { margin: 0; padding: 0; overflow-x: hidden; background: var(--fitbit-bg); 
 button.fitbit-card-icon { cursor: pointer; border: none; padding: 0; }
 button.fitbit-card-icon:hover { opacity: 0.9; }
 
-.exercise-bars { display: flex; align-items: flex-end; gap: 6px; height: 36px; }
-.exercise-bars span { width: 20px; border-radius: 6px 6px 0 0; background: var(--fitbit-teal); opacity: 0.4; height: 100%; }
+.exercise-week-wrap {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 4px 0;
+}
+.exercise-bars { display: flex; align-items: flex-end; gap: 5px; height: 32px; }
+.exercise-bars span { width: 18px; flex-shrink: 0; border-radius: 4px 4px 0 0; background: var(--fitbit-teal); opacity: 0.35; height: 100%; transition: opacity 0.2s; }
 .exercise-bars span.filled { opacity: 1; }
-.exercise-days-labels { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.65rem; color: var(--fitbit-muted); }
+.exercise-bars span.today-bar { opacity: 0.85; box-shadow: 0 0 0 2px var(--fitbit-teal); }
+.exercise-days-labels { display: flex; gap: 5px; margin-top: 4px; font-size: 0.6rem; font-weight: 600; color: var(--fitbit-muted); letter-spacing: 0.02em; }
+.exercise-days-labels span { width: 18px; flex-shrink: 0; text-align: center; }
 
 .energy-ring-wrap {
   width: 44px; height: 44px; border-radius: 50%;
@@ -380,6 +411,120 @@ button.fitbit-card-icon:hover { opacity: 0.9; }
 .login-card .btn-primary:hover { background: var(--fitbit-teal-dark); }
 .login-card .btn-outline-secondary { border-color: var(--fitbit-muted); color: var(--fitbit-muted); border-radius: 10px; }
 .login-card .btn-outline-secondary:hover { background: rgba(255,255,255,0.08); color: #fff; border-color: var(--fitbit-muted); }
+
+/* Profile – full width, card bọc form, 2 cột + hàng chỉ số BMR/TDEE */
+.profile-page { width: 100%; min-height: 0; }
+.profile-title { font-size: 1.35rem; font-weight: 700; color: #fff; margin-bottom: 1rem; }
+.profile-card {
+  width: 100%;
+  background: var(--fitbit-card);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1.75rem;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem 2.5rem;
+  margin-bottom: 1.5rem;
+}
+.profile-form-col { min-width: 0; }
+.profile-form .form-control, .profile-form .form-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.85rem;
+}
+.profile-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.profile-stat-box {
+  background: rgba(0, 176, 185, 0.12);
+  border: 1px solid rgba(0, 176, 185, 0.25);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.profile-stat-label { font-size: 0.75rem; color: var(--fitbit-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.profile-stat-value { font-size: 1.5rem; font-weight: 700; color: var(--fitbit-teal); }
+.profile-stat-hint { font-size: 0.8rem; color: var(--fitbit-muted); }
+.profile-form-actions { margin-top: 0.25rem; }
+.profile-save-btn { width: 100%; padding: 0.75rem 1.5rem; font-size: 1rem; }
+@media (max-width: 640px) {
+  .profile-form-grid { grid-template-columns: 1fr; gap: 0; }
+  .profile-card { padding: 1.25rem 1rem; }
+}
+.profile-form .form-label { color: var(--fitbit-muted); font-size: 0.875rem; margin-bottom: 0.35rem; }
+.profile-form .form-control, .profile-form .form-select {
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 10px;
+}
+.profile-form .form-select option { background: var(--fitbit-surface); color: #fff; }
+.profile-form .btn-fitbit { background: var(--fitbit-teal); color: #fff; border: none; border-radius: 10px; font-weight: 600; }
+.profile-form .btn-fitbit:hover { background: var(--fitbit-teal-dark); color: #fff; }
+.profile-form .btn-fitbit:disabled { opacity: 0.7; cursor: not-allowed; }
+.profile-form .form-error { margin: 0.25rem 0 0; font-size: 0.75rem; color: #f87171; }
+.profile-form .form-hint { margin: 0.25rem 0 0; font-size: 0.7rem; color: var(--fitbit-muted); }
+.profile-form .form-control--error { border-color: #f87171; box-shadow: 0 0 0 1px #f87171; }
+
+.btn-quick-meal {
+  cursor: pointer;
+  text-align: left;
+}
+.btn-quick-meal[disabled] { opacity: 0.7; cursor: wait; }
+
+.history-week-grid {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+.history-week-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.history-week-day {
+  font-size: 0.7rem;
+  color: var(--fitbit-muted);
+}
+.history-week-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--fitbit-teal);
+  opacity: 0.65;
+}
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.history-list-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.history-list-row:last-child { border-bottom: none; }
+.history-list-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.history-list-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  font-size: 0.8rem;
+  color: var(--fitbit-muted);
+}
 
 /* Coach */
 .coach-page { padding-bottom: 1rem; }
