@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema({
     bmi: Number,
     targetBmi: Number,
   },
+  favoriteCoachClasses: [{ type: mongoose.Schema.Types.ObjectId, ref: 'CoachClass' }],
 }, { timestamps: true });
 
 // BMI = cân nặng (kg) / (chiều cao (m))^2

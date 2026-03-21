@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import dailySummaryService from '../services/dailySummaryService';
+import workoutService from '../services/workoutService';
+import nutritionService from '../services/nutritionService';
 import toast from 'react-hot-toast';
 
 const WEEKDAY_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
@@ -17,16 +19,22 @@ function getDayIndex(date) {
 function History() {
   const [today, setToday] = useState(null);
   const [history, setHistory] = useState([]);
+  const [workoutRecords, setWorkoutRecords] = useState([]);
+  const [nutritionRecords, setNutritionRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
       dailySummaryService.getToday().then((r) => r.data),
       dailySummaryService.getHistory({ days: 7 }).then((r) => r.data),
+      workoutService.getHistory().then((r) => r.data?.data || []),
+      nutritionService.getHistory().then((r) => r.data?.data || [])
     ])
-      .then(([todayData, historyData]) => {
+      .then(([todayData, historyData, workoutData, nutritionData]) => {
         setToday(todayData);
         setHistory(Array.isArray(historyData) ? historyData : []);
+        setWorkoutRecords(workoutData);
+        setNutritionRecords(nutritionData);
       })
       .catch(() => {
         toast.error('Không tải được dữ liệu lịch sử');
@@ -42,12 +50,30 @@ function History() {
     historyByDate[key] = s;
   });
 
+  const workoutByDate = {};
+  workoutRecords.forEach((w) => {
+    const key = formatDateKey(w.date);
+    if (!workoutByDate[key]) workoutByDate[key] = 0;
+    workoutByDate[key] += (w.totalDurationMinutes || 0);
+  });
+
+  const nutritionByDate = {};
+  nutritionRecords.forEach((n) => {
+    const key = formatDateKey(n.date);
+    if (!nutritionByDate[key]) nutritionByDate[key] = 0;
+    nutritionByDate[key] += (n.macros?.calories || 0);
+  });
+
   const todayIndex = new Date().getDay();
   const todayKey = formatDateKey(new Date());
   const todayData = today ?? historyByDate[todayKey];
-  const todayCalories = todayData?.caloriesConsumed ?? 0;
+  
+  // Nguồn dữ liệu thực tế (Real db mapping) thay vì DailySummary cache
+  const todayCalories = nutritionByDate[todayKey] || 0;
+  
   const todayWater = todayData?.waterMl ?? 0;
   const todayExercise = todayData?.exercisedToday ?? false;
+  const todayWorkoutMins = workoutByDate[todayKey] || 0;
   const todaySleep = todayData?.sleepMinutes;
   const hasActivityToday = todayCalories > 0 || todayWater > 0 || todayExercise || (todaySleep != null && todaySleep > 0);
 
@@ -61,9 +87,10 @@ function History() {
   }
   last7Days.reverse();
 
-  const hasActivity = (summary) => {
+  const hasActivity = (summary, dateKey) => {
+    if ((nutritionByDate[dateKey] ?? 0) > 0) return true;
     if (!summary) return false;
-    return (summary.caloriesConsumed ?? 0) > 0 || (summary.waterMl ?? 0) > 0 || summary.exercisedToday || (summary.sleepMinutes != null && summary.sleepMinutes > 0);
+    return (summary.waterMl ?? 0) > 0 || summary.exercisedToday || (summary.sleepMinutes != null && summary.sleepMinutes > 0);
   };
 
   if (loading) {
@@ -88,88 +115,88 @@ function History() {
   return (
     <div className="history-page">
       <h1 className="page-full-title">Lịch sử</h1>
-    <div className="today-sections">
-      <section className="today-section">
-        <h2 className="today-section-title">Tổng quan hôm nay</h2>
-        <div className="today-cards today-cards--3col">
-          <div className="fitbit-card">
-            <div className="fitbit-card-body">
-              <p className="fitbit-card-title">Calories</p>
-              <p className="fitbit-card-value">{todayCalories.toLocaleString()} cal</p>
-              <p className="fitbit-card-sub">Từ Nutrition / Today</p>
+      <div className="today-sections">
+        <section className="today-section">
+          <h2 className="today-section-title">Tổng quan hôm nay</h2>
+          <div className="today-cards today-cards--3col">
+            <div className="fitbit-card">
+              <div className="fitbit-card-body">
+                <p className="fitbit-card-title">Calories</p>
+                <p className="fitbit-card-value">{todayCalories.toLocaleString()} cal</p>
+                <p className="fitbit-card-sub">Từ Nutrition / Today</p>
+              </div>
+              <div className="fitbit-card-icon"><i className="bi bi-apple" /></div>
             </div>
-            <div className="fitbit-card-icon"><i className="bi bi-apple" /></div>
-          </div>
-          <div className="fitbit-card">
-            <div className="fitbit-card-body">
-              <p className="fitbit-card-title">Nước</p>
-              <p className="fitbit-card-value">{todayWater.toLocaleString()} ml</p>
-              <p className="fitbit-card-sub">Từ Today</p>
+            <div className="fitbit-card">
+              <div className="fitbit-card-body">
+                <p className="fitbit-card-title">Nước</p>
+                <p className="fitbit-card-value">{todayWater.toLocaleString()} ml</p>
+                <p className="fitbit-card-sub">Từ Today</p>
+              </div>
+              <div className="fitbit-card-icon blue"><i className="bi bi-droplet-half" /></div>
             </div>
-            <div className="fitbit-card-icon blue"><i className="bi bi-droplet-half" /></div>
-          </div>
-          <div className="fitbit-card">
-            <div className="fitbit-card-body">
-              <p className="fitbit-card-title">Tập luyện</p>
-              <p className="fitbit-card-value">{todayExercise ? 'Đã tập' : 'Chưa tập'}</p>
-              <p className="fitbit-card-sub">Từ Workout / Today</p>
+            <div className="fitbit-card">
+              <div className="fitbit-card-body">
+                <p className="fitbit-card-title">Tập luyện</p>
+                <p className="fitbit-card-value">{todayExercise ? `Đã tập ${todayWorkoutMins}p` : 'Chưa tập'}</p>
+                <p className="fitbit-card-sub">Từ Workout / Today</p>
+              </div>
+              <div className="fitbit-card-icon"><i className="bi bi-activity" /></div>
             </div>
-            <div className="fitbit-card-icon"><i className="bi bi-activity" /></div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="today-section">
-        <h2 className="today-section-title">Tuần này</h2>
-        <div className="today-cards today-cards--1col">
-          <div className="fitbit-card card-dark">
-            <div className="history-week-grid">
-              {last7Days.map(({ date, summary }) => {
-                const dayIdx = getDayIndex(date);
+        <section className="today-section">
+          <h2 className="today-section-title">Tuần này</h2>
+          <div className="today-cards today-cards--1col">
+            <div className="fitbit-card card-dark">
+              <div className="history-week-grid">
+                {last7Days.map(({ date, summary, key }) => {
+                  const dayIdx = getDayIndex(date);
+                  const isToday = date.getTime() === todayKey;
+                  const active = hasActivity(summary, key);
+                  return (
+                    <div key={date.getTime()} className={`history-week-col ${isToday ? 'history-week-col--today' : ''}`}>
+                      <span className="history-week-day">{WEEKDAY_LABELS[dayIdx]}</span>
+                      <span className={`history-week-dot ${active ? 'history-week-dot--filled' : ''}`} />
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="form-hint" style={{ marginTop: 10, marginBottom: 0 }}>
+                Cột highlight là hôm nay. Chấm sáng = có dữ liệu (calo, nước, tập hoặc ngủ) từ API lịch sử.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="today-section">
+          <h2 className="today-section-title">Nhật ký 7 ngày gần đây</h2>
+          <div className="today-cards today-cards--1col">
+            <div className="fitbit-card card-dark history-list">
+              {last7Days.map(({ date, summary, key }) => {
                 const isToday = date.getTime() === todayKey;
-                const active = hasActivity(summary);
+                const label = isToday ? 'Hôm nay' : date.toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'short' });
+                const cal = nutritionByDate[key] || 0;
+                const water = summary?.waterMl ?? 0;
+                const exercised = summary?.exercisedToday ?? false;
+                const sleep = summary?.sleepMinutes;
                 return (
-                  <div key={date.getTime()} className={`history-week-col ${isToday ? 'history-week-col--today' : ''}`}>
-                    <span className="history-week-day">{WEEKDAY_LABELS[dayIdx]}</span>
-                    <span className={`history-week-dot ${active ? 'history-week-dot--filled' : ''}`} />
+                  <div key={date.getTime()} className={`history-list-row ${isToday ? 'history-list-row--today' : ''}`}>
+                    <div className="history-list-label">{label}</div>
+                    <div className="history-list-values">
+                      <span>Calories: {cal} cal</span>
+                      <span>Nước: {water} ml</span>
+                      <span>Tập: {exercised ? `${workoutByDate[date.getTime()] || 0}p` : 'Chưa'}</span>
+                      {sleep != null && sleep > 0 && <span>Ngủ: {Math.floor(sleep / 60)}h{sleep % 60 ? ` ${sleep % 60}m` : ''}</span>}
+                    </div>
                   </div>
                 );
               })}
             </div>
-            <p className="form-hint" style={{ marginTop: 10, marginBottom: 0 }}>
-              Cột highlight là hôm nay. Chấm sáng = có dữ liệu (calo, nước, tập hoặc ngủ) từ API lịch sử.
-            </p>
           </div>
-        </div>
-      </section>
-
-      <section className="today-section">
-        <h2 className="today-section-title">Nhật ký 7 ngày gần đây</h2>
-        <div className="today-cards today-cards--1col">
-          <div className="fitbit-card card-dark history-list">
-            {last7Days.map(({ date, summary }) => {
-              const isToday = date.getTime() === todayKey;
-              const label = isToday ? 'Hôm nay' : date.toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'short' });
-              const cal = summary?.caloriesConsumed ?? 0;
-              const water = summary?.waterMl ?? 0;
-              const exercised = summary?.exercisedToday ?? false;
-              const sleep = summary?.sleepMinutes;
-              return (
-                <div key={date.getTime()} className={`history-list-row ${isToday ? 'history-list-row--today' : ''}`}>
-                  <div className="history-list-label">{label}</div>
-                  <div className="history-list-values">
-                    <span>Calories: {cal} cal</span>
-                    <span>Nước: {water} ml</span>
-                    <span>Tập: {exercised ? 'Có' : 'Chưa'}</span>
-                    {sleep != null && sleep > 0 && <span>Ngủ: {Math.floor(sleep / 60)}h{sleep % 60 ? ` ${sleep % 60}m` : ''}</span>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-    </div>
+        </section>
+      </div>
     </div>
   );
 }

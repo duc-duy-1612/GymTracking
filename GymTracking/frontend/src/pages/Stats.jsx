@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { Component, useEffect, useRef, useState } from 'react';
 import Chart from 'chart.js/auto';
 import { useUser } from '../context/UserContext';
 import dailySummaryService from '../services/dailySummaryService';
+import workoutService from '../services/workoutService';
+import nutritionService from '../services/nutritionService';
+import Model from 'react-body-highlighter';
 
 const CHART_COLORS = {
   teal: '#00B0B9',
@@ -10,34 +13,57 @@ const CHART_COLORS = {
   doughnut: ['#00B0B9', '#6b7280', '#4b5563', '#374151'],
 };
 
+const MUSCLE_MAPPING = {
+  'Ngực': ['chest'],
+  'Lưng': ['upper-back', 'lower-back', 'trapezius', 'back-deltoids'],
+  'Vai': ['front-deltoids', 'trapezius'],
+  'Chân': ['quadriceps', 'hamstring', 'calves', 'gluteal', 'adductor', 'abductors'],
+  'Tay': ['biceps', 'triceps', 'forearm'],
+  'Bụng': ['abs', 'obliques'],
+  'Toàn thân': ['chest', 'upper-back', 'front-deltoids', 'quadriceps', 'abs', 'biceps', 'triceps'],
+  'Tim mạch': ['calves', 'quadriceps']
+};
+
+class MuscleMapErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { hasError: false, errorMsg: "" }; }
+  static getDerivedStateFromError(error) { return { hasError: true, errorMsg: error.message }; }
+  render() { 
+    if (this.state.hasError) return <div style={{color:'#fca5a5', padding:'20px'}}>Lỗi Heatmap: {this.state.errorMsg}</div>; 
+    return this.props.children; 
+  }
+}
+
 function calcBmi(weightKg, heightCm) {
   if (!weightKg || !heightCm || heightCm <= 0) return null;
   return (weightKg / ((heightCm / 100) ** 2)).toFixed(1);
 }
 
-const BODY_COMP_LABELS = ['Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7'];
-const BODY_COMP_MOCK = [85, 82, 79, 77, 76, 75];
-
-const PROPORTIONS = [
-  { label: 'Mỡ', value: 25, color: CHART_COLORS.doughnut[0] },
-  { label: 'Cơ', value: 45, color: CHART_COLORS.doughnut[1] },
-  { label: 'Nước', value: 25, color: CHART_COLORS.doughnut[2] },
-  { label: 'Xương', value: 5, color: CHART_COLORS.doughnut[3] },
-];
+const BODY_COMP_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
 function Stats() {
   const { user, loading: userLoading } = useUser();
   const [todaySummary, setTodaySummary] = useState(null);
-  const [muscleMapGender, setMuscleMapGender] = useState('female');
-  const [chartPeriod, setChartPeriod] = useState('month');
+  const [workoutHistory, setWorkoutHistory] = useState([]);
+  const [calHistory, setCalHistory] = useState([]);
+  const [nutritionHistory, setNutritionHistory] = useState([]);
+  const [muscleMapView, setMuscleMapView] = useState('anterior');
+  const [chartPeriod, setChartPeriod] = useState('week');
   const bodyCompRef = useRef(null);
   const workoutChartRef = useRef(null);
   const proportionsRef = useRef(null);
 
   useEffect(() => {
-    dailySummaryService.getToday()
-      .then((res) => setTodaySummary(res.data))
-      .catch(() => setTodaySummary(null));
+    Promise.all([
+      dailySummaryService.getToday(),
+      workoutService.getHistory(),
+      dailySummaryService.getHistory({ days: 7 }),
+      nutritionService.getHistory()
+    ]).then(([todayRes, workoutRes, historyRes, nutRes]) => {
+      setTodaySummary(todayRes.data);
+      setWorkoutHistory(workoutRes.data?.data || []);
+      setCalHistory(historyRes.data?.reverse() || []);
+      setNutritionHistory(nutRes.data?.data || []);
+    }).catch(err => console.error('Lỗi lấy thống kê', err));
   }, []);
 
   const weight = user?.measurements?.weight;
@@ -46,12 +72,61 @@ function Stats() {
   const targetWeight = user?.goals?.targetWeight;
   const bmi = user?.autoStats?.bmi ?? (weight && height ? calcBmi(weight, height) : null);
   const targetBmi = user?.autoStats?.targetBmi ?? (targetWeight != null && height ? calcBmi(targetWeight, height) : null);
-  const bodyCompValues = waist != null && waist > 0
-    ? [...BODY_COMP_MOCK.slice(0, -1), waist]
-    : BODY_COMP_MOCK;
-  const todayDayIndex = new Date().getDay();
+  
+  // Xử lý labels và dữ liệu cho biểu đồ 7 ngày từ Nutrition (nếu có) thay vì DailySummary cache
+  let chartLabels = BODY_COMP_LABELS;
+  let chartData = [0, 0, 0, 0, 0, 0, 0];
+  
+  // Tính tổng vĩ mô Protein, Carbs, Fat cho doughnut chart
+  let totalProtein = 0;
+  let totalCarbs = 0;
+  let totalFat = 0;
+
+  if (calHistory.length > 0) {
+    chartLabels = [];
+    chartData = [];
+    
+    // Group nutrition by date string YYYY-MM-DD
+    const nutritionByDate = {};
+    nutritionHistory.forEach(n => {
+      const d = new Date(n.date).toISOString().split('T')[0];
+      if (!nutritionByDate[d]) nutritionByDate[d] = { cal: 0, p: 0, c: 0, f: 0 };
+      nutritionByDate[d].cal += (n.macros?.calories || 0);
+      nutritionByDate[d].p += (n.macros?.protein || 0);
+      nutritionByDate[d].c += (n.macros?.carbs || 0);
+      nutritionByDate[d].f += (n.macros?.fat || 0);
+      
+      totalProtein += (n.macros?.protein || 0);
+      totalCarbs += (n.macros?.carbs || 0);
+      totalFat += (n.macros?.fat || 0);
+    });
+
+    calHistory.forEach(c => {
+      const dString = new Date(c.date).toISOString().split('T')[0];
+      chartLabels.push(new Date(c.date).toLocaleDateString('vi-VN', { weekday: 'short' }));
+      chartData.push(nutritionByDate[dString]?.cal || 0);
+    });
+  }
+
+  // Fallback safe value for doughnut chart
+  if (totalProtein === 0 && totalCarbs === 0 && totalFat === 0) {
+    totalProtein = 1; totalCarbs = 1; totalFat = 1; // avoid division by 0 visual bugs
+  }
+  
+  const macroProportions = [
+    { label: 'Protein (Đạm)', value: totalProtein, color: '#f43f5e' }, // fitbit-rose
+    { label: 'Carbs (Tinh bột)', value: totalCarbs, color: '#eab308' }, // yellow
+    { label: 'Fat (Chất béo)', value: totalFat, color: '#00B0B9' }, // fitbit-teal
+  ];
+
   const workoutWeek = [0, 0, 0, 0, 0, 0, 0];
-  workoutWeek[todayDayIndex] = todaySummary?.exercisedToday ? 1 : 0;
+  workoutHistory.forEach(w => {
+    const d = new Date(w.date);
+    const now = new Date();
+    if ((now - d) / (1000 * 60 * 60 * 24) <= 7) {
+      workoutWeek[d.getDay()] += (w.totalDurationMinutes || 0);
+    }
+  });
 
   const userStatsRows = [
     { icon: 'bi-person', label: 'Tên', value: user?.name ?? '—' },
@@ -68,10 +143,10 @@ function Stats() {
     const chart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels: BODY_COMP_LABELS,
+        labels: chartLabels,
         datasets: [{
-          label: 'Vòng eo (cm)',
-          data: bodyCompValues,
+          label: 'Lượng Calo (kcal)',
+          data: chartData,
           borderColor: CHART_COLORS.teal,
           backgroundColor: CHART_COLORS.tealLight,
           borderWidth: 2,
@@ -98,8 +173,7 @@ function Stats() {
             ticks: { color: CHART_COLORS.muted, font: { size: 11 } },
           },
           y: {
-            min: 70,
-            max: 90,
+            min: 0,
             grid: { color: 'rgba(255,255,255,0.06)' },
             ticks: { color: CHART_COLORS.muted, font: { size: 11 } },
           },
@@ -107,7 +181,7 @@ function Stats() {
       },
     });
     return () => chart.destroy();
-  }, [chartPeriod, bodyCompValues]);
+  }, [chartPeriod, chartData]);
 
   useEffect(() => {
     if (!workoutChartRef.current) return;
@@ -131,7 +205,7 @@ function Stats() {
           legend: { display: false },
           tooltip: {
             backgroundColor: 'rgba(37, 38, 42, 0.95)',
-            callbacks: { label: (ctx) => (ctx.raw ? 'Có tập' : 'Không tập') },
+            callbacks: { label: (ctx) => (`${ctx.raw} phút`) },
           },
         },
         scales: {
@@ -140,12 +214,12 @@ function Stats() {
             border: { display: false },
             ticks: { color: CHART_COLORS.muted, font: { size: 11 } },
           },
-          y: { display: false, min: 0, max: 1 },
+          y: { display: false, min: 0, max: Math.max(...workoutWeek, 60) },
         },
       },
     });
     return () => chart.destroy();
-  }, [todaySummary]);
+  }, [workoutHistory]);
 
   useEffect(() => {
     if (!proportionsRef.current) return;
@@ -153,10 +227,10 @@ function Stats() {
     const chart = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: PROPORTIONS.map((p) => p.label),
+        labels: macroProportions.map((p) => p.label),
         datasets: [{
-          data: PROPORTIONS.map((p) => p.value),
-          backgroundColor: PROPORTIONS.map((p) => p.color),
+          data: macroProportions.map((p) => p.value),
+          backgroundColor: macroProportions.map((p) => p.color),
           borderWidth: 0,
           hoverOffset: 4,
         }],
@@ -173,15 +247,47 @@ function Stats() {
           },
           tooltip: {
             backgroundColor: 'rgba(37, 38, 42, 0.95)',
-            callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.raw}%` },
+            callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.raw}g` },
           },
         },
       },
     });
     return () => chart.destroy();
-  }, []);
+  }, [nutritionHistory]);
 
-  const focusGroupLabel = muscleMapGender === 'female' ? 'Lower Body & Core' : 'Upper Body & Core';
+  const muscleIntensity = {};
+  workoutHistory.forEach(w => {
+    w.exercises?.forEach(ex => {
+      const mg = ex.muscleGroup;
+      if (mg) {
+        if (!muscleIntensity[mg]) muscleIntensity[mg] = 0;
+        muscleIntensity[mg] += (ex.completedSets?.length || ex.sets || 1);
+      }
+    });
+    if ((!w.exercises || w.exercises.length === 0) && w.muscleGroup) {
+      if (!muscleIntensity[w.muscleGroup]) muscleIntensity[w.muscleGroup] = 0;
+      muscleIntensity[w.muscleGroup] += 4;
+    }
+  });
+
+  const bodyHighlighterData = Object.keys(muscleIntensity)
+    .filter(mg => MUSCLE_MAPPING[mg] && MUSCLE_MAPPING[mg].length > 0)
+    .map(mg => {
+      return {
+        name: mg,
+        muscles: MUSCLE_MAPPING[mg],
+        frequency: Math.max(1, Math.min(Math.ceil(muscleIntensity[mg] / 3), 4)) // scale down raw sets strictly to 1-4 heat index max
+      };
+    });
+
+  let maxIntensity = 0;
+  let focusGroupLabel = 'Chưa có dữ liệu';
+  Object.entries(muscleIntensity).forEach(([mg, freq]) => {
+    if (freq > maxIntensity) {
+      maxIntensity = freq;
+      focusGroupLabel = mg;
+    }
+  });
 
   if (userLoading && !user) {
     return (
@@ -227,29 +333,41 @@ function Stats() {
         <div className="stats-muscle-card fitbit-card">
           <div className="stats-muscle-header">
             <h2 className="stats-muscle-title">Muscle Map</h2>
-            <div className="stats-muscle-toggle" role="group" aria-label="Giới tính">
+            <div className="stats-muscle-toggle" role="group" aria-label="Góc nhìn">
               <button
                 type="button"
-                className={`stats-toggle-btn ${muscleMapGender === 'female' ? 'stats-toggle-btn--active' : ''}`}
-                onClick={() => setMuscleMapGender('female')}
+                className={`stats-toggle-btn ${muscleMapView === 'anterior' ? 'stats-toggle-btn--active' : ''}`}
+                onClick={() => setMuscleMapView('anterior')}
               >
-                Nữ
+                Mặt trước
               </button>
               <button
                 type="button"
-                className={`stats-toggle-btn ${muscleMapGender === 'male' ? 'stats-toggle-btn--active' : ''}`}
-                onClick={() => setMuscleMapGender('male')}
+                className={`stats-toggle-btn ${muscleMapView === 'posterior' ? 'stats-toggle-btn--active' : ''}`}
+                onClick={() => setMuscleMapView('posterior')}
               >
-                Nam
+                Mặt sau
               </button>
             </div>
           </div>
-          <div className="stats-muscle-image-wrap">
-            <img
-              src="https://fitliferegime.com/wp-content/uploads/2025/04/Muscle-Chart-and-Exercises.png"
-              className="stats-muscle-image"
-              alt="Muscle Map"
-            />
+          <div className="stats-muscle-image-wrap" style={{ display: 'flex', justifyContent: 'center', margin: '20px 0' }}>
+            <MuscleMapErrorBoundary>
+              {(() => {
+                // Xử lý an toàn cho Vite ESM vs CJS interop
+                const SafeModel = Model.default || Model;
+                if (!SafeModel || (typeof SafeModel !== 'function' && typeof SafeModel !== 'object')) {
+                  return <p style={{ color: 'var(--fitbit-muted)' }}>Đang tải mô hình 3D...</p>;
+                }
+                return (
+                  <SafeModel
+                    data={bodyHighlighterData}
+                    style={{ width: '40%', minWidth: '150px' }}
+                    type={muscleMapView}
+                    highlightedColors={['#374151', '#f87171', '#ef4444', '#dc2626', '#991b1b']}
+                  />
+                );
+              })()}
+            </MuscleMapErrorBoundary>
           </div>
           <div className="stats-muscle-focus">
             <i className="bi bi-bullseye me-1" />
@@ -261,13 +379,12 @@ function Stats() {
       <div className="stats-row stats-row--body-comp">
         <div className="stats-chart-card fitbit-card">
           <div className="stats-chart-header">
-            <h2 className="stats-chart-title">Body Composition</h2>
+            <h2 className="stats-chart-title">Lượng Calo Tiêu Thụ</h2>
             <div className="stats-period-tabs">
               <button type="button" className={`stats-period-btn ${chartPeriod === 'week' ? 'stats-period-btn--active' : ''}`} onClick={() => setChartPeriod('week')}>Tuần</button>
-              <button type="button" className={`stats-period-btn ${chartPeriod === 'month' ? 'stats-period-btn--active' : ''}`} onClick={() => setChartPeriod('month')}>Tháng</button>
             </div>
           </div>
-          <p className="stats-chart-sub">Vòng eo (cm) — điểm cuối từ hồ sơ nếu có</p>
+          <p className="stats-chart-sub">Calo nạp vào (kcal) trong 7 ngày qua</p>
           <div className="stats-chart-container stats-chart-container--line">
             <canvas ref={bodyCompRef} />
           </div>
@@ -277,18 +394,18 @@ function Stats() {
       <div className="stats-row stats-row--charts">
         <div className="stats-chart-card fitbit-card">
           <div className="stats-chart-header">
-            <h2 className="stats-chart-title">Workout</h2>
+            <h2 className="stats-chart-title">Thời Gian Tập Luyện</h2>
           </div>
-          <p className="stats-chart-sub">Số ngày tập trong tuần</p>
+          <p className="stats-chart-sub">Số phút tập trong tuần</p>
           <div className="stats-chart-container stats-chart-container--bar">
             <canvas ref={workoutChartRef} />
           </div>
         </div>
         <div className="stats-chart-card fitbit-card stats-chart-card--proportions">
           <div className="stats-chart-header">
-            <h2 className="stats-chart-title">Thành phần cơ thể</h2>
+            <h2 className="stats-chart-title">Tỷ lệ Dinh dưỡng (Macros)</h2>
           </div>
-          <p className="stats-chart-sub">Tỷ lệ ước tính (%)</p>
+          <p className="stats-chart-sub">Protein, Carbs, Fat tiêu thụ (gram)</p>
           <div className="stats-chart-container stats-chart-container--doughnut">
             <canvas ref={proportionsRef} />
           </div>

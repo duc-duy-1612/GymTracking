@@ -15,7 +15,7 @@ const getMe = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
-    const allowed = ['name', 'gender', 'age', 'measurements', 'activityLevel', 'goals'];
+    const allowed = ['name', 'gender', 'age', 'measurements', 'activityLevel', 'goals', 'favoriteCoachClasses'];
     const updates = {};
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) updates[key] = req.body[key];

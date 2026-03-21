@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
+import coachService from '../services/coachService';
+import userService from '../services/userService';
+import { useUser } from '../context/UserContext';
 
 const COPIES = 3;
 
@@ -16,90 +19,64 @@ const FILTERS = [
   { id: 'favorites', label: 'Favorites', icon: 'bi bi-heart-fill' },
 ];
 
-const PELOTON_ITEMS = [
-  { title: 'Peloton: Evening Mobility with Kirra Michel', duration: '20 min', type: 'Workout', category: 'mobility', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=240&fit=crop' },
-  { title: 'Peloton Adrian Williams: HIIT', duration: '10 min', type: 'Workout', category: 'cardio', image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=240&fit=crop' },
-  { title: 'Peloton: Morning Stretch', duration: '15 min', type: 'Stretch', category: 'mobility', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
-  { title: 'Peloton: Tread Bootcamp', duration: '30 min', type: 'Workout', category: 'running', image: 'https://images.unsplash.com/photo-1534258936925-c58bed479fcb?w=400&h=240&fit=crop' },
-  { title: 'Peloton: Upper Body Strength', duration: '25 min', type: 'Workout', category: 'strength', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=240&fit=crop' },
-  { title: 'Peloton: Power Yoga Flow', duration: '45 min', type: 'Yoga', category: 'yoga', image: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=400&h=240&fit=crop' },
-  { title: 'Peloton: Tabata Ride', duration: '20 min', type: 'Workout', category: 'cardio', image: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=400&h=240&fit=crop' },
-  { title: 'Peloton: Foam Rolling Recovery', duration: '10 min', type: 'Recovery', category: 'mobility', image: 'https://images.unsplash.com/photo-1599901860904-17e6ed7083a0?w=400&h=240&fit=crop' },
-];
+function CoachSection({ title, children, onSeeAll }) {
+  const rowRef = useRef(null);
+  const isDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
 
-const SLEEP_ITEMS = [
-  { title: 'Relax from head to toe', duration: '22 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1541783245831-57d6fb0926d3?w=400&h=240&fit=crop' },
-  { title: 'Comfort sounds for sleep', duration: '5 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=400&h=240&fit=crop' },
-  { title: 'Deep sleep meditation', duration: '30 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=240&fit=crop' },
-  { title: 'Wind down yoga', duration: '15 min', type: 'Yoga', category: 'mindful', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
-  { title: 'Rain & thunder sounds', duration: '45 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&h=240&fit=crop' },
-  { title: 'Body scan for sleep', duration: '20 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=400&h=240&fit=crop' },
-];
+  const handleMouseDown = (e) => {
+    isDown.current = true;
+    if (rowRef.current) {
+      rowRef.current.style.scrollSnapType = 'none';
+      rowRef.current.style.scrollBehavior = 'auto';
+      rowRef.current.style.cursor = 'grabbing';
+      startX.current = e.pageX - rowRef.current.offsetLeft;
+      scrollLeft.current = rowRef.current.scrollLeft;
+    }
+  };
 
-const STRESS_ITEMS = [
-  { title: 'How to calm down', duration: '5 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=400&h=240&fit=crop' },
-  { title: '2-minute breathing', duration: '2 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=240&fit=crop' },
-  { title: 'Quick stress relief', duration: '10 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=400&h=240&fit=crop' },
-  { title: 'Anxiety relief meditation', duration: '12 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&h=240&fit=crop' },
-  { title: 'Office stretch break', duration: '7 min', type: 'Stretch', category: 'mindful', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
-  { title: 'Evening gratitude', duration: '8 min', type: 'Mindfulness', category: 'mindful', image: 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&h=240&fit=crop' },
-];
+  const handleMouseMove = (e) => {
+    if (!isDown.current || !rowRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - rowRef.current.offsetLeft;
+    const walk = (x - startX.current) * 1.5;
+    rowRef.current.scrollLeft = scrollLeft.current - walk;
+    
+    if (Math.abs(walk) > 5) {
+      Array.from(rowRef.current.children).forEach(c => c.style.pointerEvents = 'none');
+    }
+  };
 
-const FITNESS_ITEMS = [
-  { title: 'Wheelchair med ball cardio', duration: '18 min', type: 'Workout', category: 'cardio', image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=240&fit=crop' },
-  { title: 'Peloton: Full body strength', duration: '20 min', type: 'Workout', category: 'strength', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&h=240&fit=crop' },
-  { title: 'Yoga for beginners', duration: '25 min', type: 'Yoga', category: 'yoga', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
-  { title: '5K run training', duration: '35 min', type: 'Workout', category: 'running', image: 'https://images.unsplash.com/photo-1571008887538-b36bb32f4571?w=400&h=240&fit=crop' },
-  { title: 'Lower body strength', duration: '28 min', type: 'Workout', category: 'strength', image: 'https://images.unsplash.com/photo-1434682881908-b43d0467b798?w=400&h=240&fit=crop' },
-  { title: 'HIIT cardio blast', duration: '15 min', type: 'Workout', category: 'cardio', image: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=240&fit=crop' },
-  { title: 'Vinyasa flow', duration: '40 min', type: 'Yoga', category: 'yoga', image: 'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=400&h=240&fit=crop' },
-  { title: 'Pilates core', duration: '22 min', type: 'Pilates', category: 'strength', image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&h=240&fit=crop' },
-  { title: 'Mobility & flexibility', duration: '20 min', type: 'Recovery', category: 'mobility', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=240&fit=crop' },
-  { title: 'Treadmill intervals', duration: '25 min', type: 'Workout', category: 'running', image: 'https://images.unsplash.com/photo-1534258936925-c58bed479fcb?w=400&h=240&fit=crop' },
-  { title: 'Dumbbell upper body', duration: '30 min', type: 'Workout', category: 'strength', image: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?w=400&h=240&fit=crop' },
-  { title: 'Restorative yoga', duration: '30 min', type: 'Yoga', category: 'yoga', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=240&fit=crop' },
-];
+  const release = () => {
+    isDown.current = false;
+    if (rowRef.current) {
+      rowRef.current.style.scrollSnapType = '';
+      rowRef.current.style.scrollBehavior = '';
+      rowRef.current.style.cursor = '';
+      setTimeout(() => {
+        Array.from(rowRef.current.children).forEach(c => c.style.pointerEvents = '');
+      }, 50); // Small delay to prevent click firing immediately after drag
+    }
+  };
 
-const INSTRUCTORS = [
-  { name: 'Denise', role: 'Fitness Instructor', image: 'https://images.unsplash.com/photo-1594381898411-846e7d193883?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Diamond', role: 'Fitness Instructor', image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Alex', role: 'Yoga Instructor', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Jordan', role: 'Strength Coach', image: 'https://thumbs.dreamstime.com/b/confident-motivated-fitness-coach-posing-gym-105270802.jpg' },
-  { name: 'Kirra', role: 'Peloton Instructor', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Marcus', role: 'HIIT Coach', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Sofia', role: 'Pilates Instructor', image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Ryan', role: 'Running Coach', image: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Emma', role: 'Mindfulness Coach', image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face' },
-  { name: 'David', role: 'CrossFit Trainer', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Luna', role: 'Dance Fitness', image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face' },
-  { name: 'Chris', role: 'Mobility Specialist', image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face' },
-];
-
-const BRANDS = [
-  { name: 'AURA', icon: 'bi bi-circle' },
-  { name: 'Breethe', icon: 'bi bi-flower1' },
-  { name: 'Peloton', icon: 'bi bi-play-circle' },
-  { name: 'Calm', icon: 'bi bi-moon-stars' },
-  { name: 'Headspace', icon: 'bi bi-headphones' },
-  { name: 'Apple Fitness+', icon: 'bi bi-apple' },
-  { name: 'Nike Training', icon: 'bi bi-lightning' },
-  { name: 'Adidas Runtastic', icon: 'bi bi-geo-alt' },
-  { name: 'Strava', icon: 'bi bi-speedometer2' },
-  { name: 'MyFitnessPal', icon: 'bi bi-egg-fried' },
-  { name: 'Fitbit', icon: 'bi bi-heart-pulse' },
-  { name: 'Garmin', icon: 'bi bi-watch' },
-  { name: 'Whoop', icon: 'bi bi-activity' },
-  { name: 'Zwift', icon: 'bi bi-bicycle' },
-];
-
-function CoachSection({ title, children }) {
   return (
     <section className="coach-section">
       <div className="coach-section-header">
         <h2 className="coach-section-title">{title}</h2>
-        <button type="button" className="coach-see-all">Xem tất cả</button>
+        {onSeeAll && <button type="button" className="coach-see-all" onClick={onSeeAll}>Xem tất cả</button>}
       </div>
-      <div className="coach-card-row">{children}</div>
+      <div 
+        className="coach-card-row"
+        ref={rowRef}
+        onMouseDown={handleMouseDown}
+        onMouseLeave={release}
+        onMouseUp={release}
+        onMouseMove={handleMouseMove}
+        style={{ cursor: 'grab' }}
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -117,12 +94,31 @@ function filterItems(items, filterId, query) {
   return out;
 }
 
-function CoachCard({ item }) {
+function CoachCard({ item, onClickPlay, isFavorite, onToggleFavorite }) {
   return (
     <div className="coach-card">
-      <div className="coach-card-image-wrap">
-        <img src={item.image} alt="" className="coach-card-image" />
-        <span className="coach-card-play"><i className="bi bi-play-fill" /></span>
+      <div className="coach-card-image-wrap" onClick={() => onClickPlay(item.videoUrl)}>
+        {onToggleFavorite && (
+          <button 
+            type="button"
+            className="coach-card-fav-btn"
+            onClick={(e) => onToggleFavorite(e, item._id)}
+            style={{ 
+              position: 'absolute', top: '8px', right: '8px', zIndex: 10, 
+              background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%', 
+              color: isFavorite ? '#ef4444' : '#fff', width: '32px', height: '32px', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              transition: 'color 0.2s, transform 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+            title={isFavorite ? "Bỏ thích" : "Yêu thích"}
+          >
+            <i className={`bi ${isFavorite ? 'bi-heart-fill' : 'bi-heart'}`} />
+          </button>
+        )}
+        <img src={item.image || item.thumbnailUrl} alt={item.title} className="coach-card-image" style={{ cursor: 'pointer' }} />
+        <span className="coach-card-play" style={{ cursor: 'pointer' }}><i className="bi bi-play-fill" /></span>
       </div>
       <h3 className="coach-card-title">{item.title}</h3>
       <p className="coach-card-meta">
@@ -134,13 +130,54 @@ function CoachCard({ item }) {
 }
 
 function Coach() {
+  const { user, setUser } = useUser();
+  const [classes, setClasses] = useState([]);
+  const [instructors, setInstructors] = useState([]);
+  const [brands, setBrands] = useState([]);
+  
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [seeAllModal, setSeeAllModal] = useState(null);
+  const [playingVideo, setPlayingVideo] = useState(null); // The video URL to play
+  const [favoriteIds, setFavoriteIds] = useState([]);
+
   const instructorsCarouselRef = useRef(null);
   const brandsCarouselRef = useRef(null);
   const instructorsJumpingRef = useRef(false);
   const brandsJumpingRef = useRef(false);
+
+  useEffect(() => {
+    coachService.getClasses().then(res => setClasses(res.data.data)).catch(console.error);
+    coachService.getInstructors().then(res => setInstructors(res.data.data)).catch(console.error);
+    coachService.getBrands().then(res => setBrands(res.data.data)).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    if (user?.favoriteCoachClasses) {
+      setFavoriteIds(user.favoriteCoachClasses);
+    }
+  }, [user]);
+
+  const toggleFavorite = async (e, classId) => {
+    if (e) e.stopPropagation();
+    if (!user) {
+      alert("Vui lòng đăng nhập để lưu danh sách yêu thích!");
+      return;
+    }
+    try {
+      let newFavs;
+      if (favoriteIds.includes(classId)) {
+        newFavs = favoriteIds.filter(id => id !== classId);
+      } else {
+        newFavs = [...favoriteIds, classId];
+      }
+      setFavoriteIds(newFavs); // Optimistic UI update
+      setUser({ ...user, favoriteCoachClasses: newFavs }); // Optimistic context update
+      await userService.updateProfile({ favoriteCoachClasses: newFavs });
+    } catch (err) {
+      console.error("Lỗi khi lưu danh sách yêu thích:", err);
+    }
+  };
 
   const carouselNext = (ref) => {
     if (ref?.current) ref.current.scrollBy({ left: ref.current.clientWidth, behavior: 'smooth' });
@@ -175,7 +212,7 @@ function Coach() {
 
   useEffect(() => {
     const el = instructorsCarouselRef.current;
-    if (!el) return;
+    if (!el || instructors.length === 0) return;
     const init = () => {
       const oneCopy = el.scrollWidth / COPIES;
       if (oneCopy <= 0) return;
@@ -190,11 +227,11 @@ function Coach() {
       cancelAnimationFrame(raf);
       if (cleanup) cleanup();
     };
-  }, [INSTRUCTORS.length]);
+  }, [instructors.length]);
 
   useEffect(() => {
     const el = brandsCarouselRef.current;
-    if (!el) return;
+    if (!el || brands.length === 0) return;
     const init = () => {
       const oneCopy = el.scrollWidth / COPIES;
       if (oneCopy <= 0) return;
@@ -209,12 +246,27 @@ function Coach() {
       cancelAnimationFrame(raf);
       if (cleanup) cleanup();
     };
-  }, [BRANDS.length]);
+  }, [brands.length]);
 
-  const pelotonFiltered = filterItems(PELOTON_ITEMS, activeFilter, searchQuery);
-  const sleepFiltered = filterItems(SLEEP_ITEMS, activeFilter, searchQuery);
-  const stressFiltered = filterItems(STRESS_ITEMS, activeFilter, searchQuery);
-  const fitnessFiltered = filterItems(FITNESS_ITEMS, activeFilter, searchQuery);
+  const pelotonItems = classes.filter(c => c.section === 'Peloton');
+  const sleepItems = classes.filter(c => c.section === 'Sleep');
+  const stressItems = classes.filter(c => c.section === 'Stress');
+  const fitnessItems = classes.filter(c => c.section === 'Fitness');
+
+  const pelotonFiltered = filterItems(pelotonItems, activeFilter, searchQuery);
+  const sleepFiltered = filterItems(sleepItems, activeFilter, searchQuery);
+  const stressFiltered = filterItems(stressItems, activeFilter, searchQuery);
+  const fitnessFiltered = filterItems(fitnessItems, activeFilter, searchQuery);
+
+  const favoriteItemsList = filterItems(classes.filter(c => favoriteIds.includes(c._id)), 'all', searchQuery);
+
+  const handlePlayVideo = (url) => {
+    if (url) {
+      setPlayingVideo(url);
+    } else {
+      alert("Video này chưa có liên kết hướng dẫn!");
+    }
+  };
 
   return (
     <div className="coach-page">
@@ -243,34 +295,49 @@ function Coach() {
         />
       </div>
 
+      {activeFilter === 'favorites' && favoriteItemsList.length > 0 && (
+        <CoachSection title="Lớp học yêu thích">
+          {favoriteItemsList.map((item, i) => (
+            <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
+          ))}
+        </CoachSection>
+      )}
+
+      {activeFilter === 'favorites' && favoriteItemsList.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--fitbit-muted)' }}>
+          <i className="bi bi-heart" style={{ fontSize: '3rem', marginBottom: '10px', display: 'block' }} />
+          <p>Bạn chưa thêm bài tập nào vào danh sách yêu thích.</p>
+        </div>
+      )}
+
       {pelotonFiltered.length > 0 && (
-        <CoachSection title="Lớp Peloton">
+        <CoachSection title="Lớp Peloton" onSeeAll={() => setSeeAllModal('Peloton')}>
           {pelotonFiltered.map((item, i) => (
-            <CoachCard key={item.title + i} item={item} />
+            <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
           ))}
         </CoachSection>
       )}
 
       {sleepFiltered.length > 0 && (
-        <CoachSection title="Ngủ ngon hơn">
+        <CoachSection title="Ngủ ngon hơn" onSeeAll={() => setSeeAllModal('Sleep')}>
           {sleepFiltered.map((item, i) => (
-            <CoachCard key={item.title + i} item={item} />
+            <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
           ))}
         </CoachSection>
       )}
 
       {stressFiltered.length > 0 && (
-        <CoachSection title="Giảm căng thẳng">
+        <CoachSection title="Giảm căng thẳng" onSeeAll={() => setSeeAllModal('Stress')}>
           {stressFiltered.map((item, i) => (
-            <CoachCard key={item.title + i} item={item} />
+            <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
           ))}
         </CoachSection>
       )}
 
       {fitnessFiltered.length > 0 && (
-        <CoachSection title="Tìm phong cách tập">
+        <CoachSection title="Tìm phong cách tập" onSeeAll={() => setSeeAllModal('Fitness')}>
           {fitnessFiltered.map((item, i) => (
-            <CoachCard key={item.title + i} item={item} />
+            <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
           ))}
         </CoachSection>
       )}
@@ -285,11 +352,11 @@ function Coach() {
             <i className="bi bi-chevron-left" />
           </button>
           <div ref={instructorsCarouselRef} className="coach-instructor-row coach-carousel-track">
-            {Array.from({ length: COPIES }, (_, copy) =>
-              INSTRUCTORS.map((inst, i) => (
-                <div key={`inst-${copy}-${i}`} className="coach-instructor-card">
+            {instructors.length > 0 && Array.from({ length: COPIES }, (_, copy) =>
+              instructors.map((inst, i) => (
+                <div key={`inst-${copy}-${inst._id || i}`} className="coach-instructor-card">
                   <div className="coach-instructor-avatar-wrap">
-                    <img src={inst.image} alt="" className="coach-instructor-avatar" />
+                    <img src={inst.image} alt={inst.name} className="coach-instructor-avatar" />
                   </div>
                   <p className="coach-instructor-name">{inst.name}</p>
                   <p className="coach-instructor-role">{inst.role}</p>
@@ -313,9 +380,9 @@ function Coach() {
             <i className="bi bi-chevron-left" />
           </button>
           <div ref={brandsCarouselRef} className="coach-brand-row coach-carousel-track">
-            {Array.from({ length: COPIES }, (_, copy) =>
-              BRANDS.map((b, i) => (
-                <button key={`brand-${copy}-${i}`} type="button" className="coach-brand-card">
+            {brands.length > 0 && Array.from({ length: COPIES }, (_, copy) =>
+              brands.map((b, i) => (
+                <button key={`brand-${copy}-${b._id || i}`} type="button" className="coach-brand-card">
                   <i className={`bi ${b.icon} coach-brand-icon`} />
                   <span className="coach-brand-name">{b.name}</span>
                 </button>
@@ -328,11 +395,19 @@ function Coach() {
         </div>
       </section>
 
+      {/* SEE ALL MODAL (Instructors/Brands/Classes) */}
       {seeAllModal && (
         <div className="coach-modal-overlay" onClick={() => setSeeAllModal(null)} role="presentation">
           <div className="coach-modal" onClick={(e) => e.stopPropagation()}>
             <div className="coach-modal-header">
-              <h3 className="coach-modal-title">{seeAllModal === 'instructors' ? 'Huấn luyện viên' : 'Thương hiệu'}</h3>
+              <h3 className="coach-modal-title">
+                {seeAllModal === 'instructors' && 'Huấn luyện viên'}
+                {seeAllModal === 'brands' && 'Thương hiệu'}
+                {seeAllModal === 'Peloton' && 'Lớp Peloton'}
+                {seeAllModal === 'Sleep' && 'Ngủ ngon hơn'}
+                {seeAllModal === 'Stress' && 'Giảm căng thẳng'}
+                {seeAllModal === 'Fitness' && 'Tìm phong cách tập'}
+              </h3>
               <button type="button" className="coach-modal-close" onClick={() => setSeeAllModal(null)} aria-label="Đóng">
                 <i className="bi bi-x-lg" />
               </button>
@@ -340,10 +415,10 @@ function Coach() {
             <div className="coach-modal-body">
               {seeAllModal === 'instructors' && (
                 <div className="coach-modal-instructors">
-                  {INSTRUCTORS.map((inst, i) => (
+                  {instructors.map((inst, i) => (
                     <div key={i} className="coach-instructor-card">
                       <div className="coach-instructor-avatar-wrap">
-                        <img src={inst.image} alt="" className="coach-instructor-avatar" />
+                        <img src={inst.image} alt={inst.name} className="coach-instructor-avatar" />
                       </div>
                       <p className="coach-instructor-name">{inst.name}</p>
                       <p className="coach-instructor-role">{inst.role}</p>
@@ -353,7 +428,7 @@ function Coach() {
               )}
               {seeAllModal === 'brands' && (
                 <div className="coach-modal-brands">
-                  {BRANDS.map((b, i) => (
+                  {brands.map((b, i) => (
                     <button key={i} type="button" className="coach-brand-card">
                       <i className={`bi ${b.icon} coach-brand-icon`} />
                       <span className="coach-brand-name">{b.name}</span>
@@ -361,6 +436,45 @@ function Coach() {
                   ))}
                 </div>
               )}
+              {['Peloton', 'Sleep', 'Stress', 'Fitness'].includes(seeAllModal) && (
+                <div className="coach-modal-classes" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', padding: '1rem 0', justifyContent: 'center' }}>
+                  {seeAllModal === 'Peloton' && pelotonFiltered.map((item, i) => (
+                    <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
+                  ))}
+                  {seeAllModal === 'Sleep' && sleepFiltered.map((item, i) => (
+                    <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
+                  ))}
+                  {seeAllModal === 'Stress' && stressFiltered.map((item, i) => (
+                    <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
+                  ))}
+                  {seeAllModal === 'Fitness' && fitnessFiltered.map((item, i) => (
+                    <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIDEO PLAYER MODAL */}
+      {playingVideo && (
+        <div className="coach-modal-overlay" style={{ zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center' }} onClick={() => setPlayingVideo(null)} role="presentation">
+          <div className="coach-video-modal" style={{ width: '80%', maxWidth: '800px', background: '#000', borderRadius: '12px', overflow: 'hidden', position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+            <button type="button" 
+              onClick={() => setPlayingVideo(null)} 
+              style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.5)', border: 'none', color: '#fff', borderRadius: '50%', width: '36px', height: '36px', zIndex: 10 }}>
+              <i className="bi bi-x-lg" />
+            </button>
+            <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+              <iframe 
+                src={playingVideo.includes('youtube') && !playingVideo.includes('autoplay') ? `${playingVideo}?autoplay=1` : playingVideo} 
+                title="Video Player" 
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} 
+                frameBorder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowFullScreen>
+              </iframe>
             </div>
           </div>
         </div>

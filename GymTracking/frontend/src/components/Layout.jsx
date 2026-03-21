@@ -117,32 +117,34 @@ function Layout({ children }) {
           {children}
         </div>
 
-        <div className="fab-wrap" ref={fabWrapRef}>
-          {fabOpen && (
-            <div className="fab-menu">
-              {fabActions.map((action) => (
-                <Link
-                  key={action.to}
-                  to={action.to}
-                  className="fab-menu-item"
-                  onClick={() => setFabOpen(false)}
-                >
-                  <i className={`bi ${action.icon}`} />
-                  <span>{action.label}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-          <button
-            type="button"
-            className="fab"
-            title="Thêm dữ liệu"
-            onClick={() => setFabOpen((v) => !v)}
-            aria-expanded={fabOpen}
-          >
-            <i className="bi bi-plus-lg" />
-          </button>
-        </div>
+        {location.pathname !== '/workout' && (
+          <div className="fab-wrap" ref={fabWrapRef}>
+            {fabOpen && (
+              <div className="fab-menu">
+                {fabActions.map((action) => (
+                  <Link
+                    key={action.to}
+                    to={action.to}
+                    className="fab-menu-item"
+                    onClick={() => setFabOpen(false)}
+                  >
+                    <i className={`bi ${action.icon}`} />
+                    <span>{action.label}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              className="fab"
+              title="Thêm dữ liệu"
+              onClick={() => setFabOpen((v) => !v)}
+              aria-expanded={fabOpen}
+            >
+              <i className="bi bi-plus-lg" />
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );
