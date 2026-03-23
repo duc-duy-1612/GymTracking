@@ -91,20 +91,29 @@ function Nutrition() {
     ])
       .then(([summaryRes, historyRes]) => {
         let totalCals = 0;
-        if (historyRes.data?.data) {
-          totalCals = historyRes.data.data.reduce((sum, m) => sum + (m.macros?.calories || 0), 0);
-          setMeals(historyRes.data.data.map(m => ({
-            id: m._id,
-            label: m.foodItem,
-            calories: m.macros.calories,
-            mealType: m.mealType
-          })));
+        let totalGlucose = 0;
+        const historyItems = historyRes.data?.data || [];
+        if (historyItems.length > 0) {
+          setMeals(historyItems.map(m => {
+            totalCals += (m.macros?.calories || 0);
+            totalGlucose += (m.macros?.glucose || 0);
+            return {
+              id: m._id,
+              label: m.foodItem,
+              calories: m.macros?.calories || 0,
+              glucose: m.macros?.glucose || 0,
+              mealType: m.mealType
+            };
+          }));
         }
         setCaloriesToday(totalCals);
         
+        // Cache object into window variable for cross-request tracking
+        window.tempGlucoseToday = totalGlucose;
+        
         // Đồng bộ ngược lại database nếu Local Cache bị lệch do xóa thủ công
-        if (summaryRes.data && summaryRes.data.caloriesConsumed !== totalCals) {
-          dailySummaryService.updateToday({ caloriesConsumed: totalCals }).catch(console.error);
+        if (summaryRes.data && (summaryRes.data.caloriesConsumed !== totalCals || summaryRes.data.glucoseConsumed !== totalGlucose)) {
+          dailySummaryService.updateToday({ caloriesConsumed: totalCals, glucoseConsumed: totalGlucose }).catch(console.error);
         }
       })
       .catch(() => toast.error('Không tải được dữ liệu dinh dưỡng hôm nay'))
@@ -114,8 +123,10 @@ function Nutrition() {
   const targetCalories = user?.autoStats?.tdee ?? 1796;
   const remaining = Math.max(targetCalories - caloriesToday, 0);
 
-  const addCalories = (amount, label, mealType = 'Snack', additionalMacros = { protein: 0, carbs: 0, fat: 0 }) => {
+  const addCalories = (amount, label, mealType = 'Snack', additionalMacros = { protein: 0, carbs: 0, fat: 0, glucose: 0 }) => {
     const newTotal = caloriesToday + amount;
+    const newGlucose = (window.tempGlucoseToday || 0) + (additionalMacros.glucose || 0);
+    window.tempGlucoseToday = newGlucose;
     setAdding(true);
 
     // Lưu thông tin bữa ăn chi tiết vào API nutrition
@@ -125,8 +136,8 @@ function Nutrition() {
       macros: { calories: amount, ...additionalMacros }
     })
       .then((mealRes) => {
-        // Sau đó cộng dồn calo vào trang DailySummary
-        return dailySummaryService.updateToday({ caloriesConsumed: newTotal })
+        // Sau đó cộng dồn calo và đường vào trang DailySummary
+        return dailySummaryService.updateToday({ caloriesConsumed: newTotal, glucoseConsumed: newGlucose })
           .then((res) => {
             setCaloriesToday(res.data.caloriesConsumed ?? newTotal);
             const savedMeal = mealRes.data?.data;
@@ -152,7 +163,8 @@ function Nutrition() {
     addCalories(amount, customMeal.name || 'Bữa ăn tùy chỉnh', 'Snack', { 
       protein: customMeal.protein || 0, 
       carbs: customMeal.carbs || 0, 
-      fat: customMeal.fat || 0 
+      fat: customMeal.fat || 0,
+      glucose: 0 // Tuỳ chỉnh ko có glucose default
     });
     setCustomMeal({ name: '', calories: '', protein: 0, carbs: 0, fat: 0 });
   };
@@ -230,7 +242,7 @@ function Nutrition() {
           >
             {libraryFoods.map(food => (
               <div key={food._id} className="coach-card" style={{ minWidth: '200px', flexShrink: 0 }}>
-                <div className="coach-card-image-wrap" onClick={() => addCalories(food.calories, food.name, activeMealTab, { protein: food.protein, carbs: food.carbs, fat: food.fat })}>
+                <div className="coach-card-image-wrap" onClick={() => addCalories(food.calories, food.name, activeMealTab, { protein: food.protein, carbs: food.carbs, fat: food.fat, glucose: food.glucose || 0 })}>
                   <img src={food.image || `https://loremflickr.com/400/300/food?lock=${food.name.length}`} alt={food.name} className="coach-card-image" draggable="false" style={{ cursor: 'pointer', height: '140px', objectFit: 'cover' }} />
                   <span className="coach-card-play" style={{ cursor: 'pointer', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><i className="bi bi-plus" style={{ fontSize: '1.5rem', marginLeft: 0 }} /></span>
                 </div>
@@ -259,7 +271,7 @@ function Nutrition() {
                   type="button"
                   className="fitbit-card btn-quick-meal"
                   disabled={adding}
-                  onClick={() => addCalories(m.calories, m.name, 'Snack', { protein: m.protein, carbs: m.carbs, fat: m.fat })}
+                  onClick={() => addCalories(m.calories, m.name, 'Snack', { protein: m.protein, carbs: m.carbs, fat: m.fat, glucose: m.glucose || 0 })}
                 >
                   <div className="fitbit-card-body">
                     <p className="fitbit-card-title">{m.name}</p>

@@ -29,7 +29,7 @@ const getToday = async (req, res) => {
 const updateToday = async (req, res) => {
   try {
     const today = getStartOfDay(new Date());
-    const allowed = ['waterMl', 'caloriesConsumed', 'caloriesBurned', 'sleepMinutes', 'sleepStart', 'sleepEnd', 'exercisedToday', 'mindfulMinutes', 'weightKg', 'glucoseMgDl'];
+    const allowed = ['waterMl', 'caloriesConsumed', 'caloriesBurned', 'sleepMinutes', 'sleepStart', 'sleepEnd', 'exercisedToday', 'mindfulMinutes', 'weightKg', 'glucoseMgDl', 'glucoseConsumed'];
     const updates = { userId: req.user._id, date: today };
     allowed.forEach((key) => {
       if (req.body[key] !== undefined) updates[key] = req.body[key];

@@ -198,7 +198,7 @@ button.fitbit-card-icon:hover { opacity: 0.9; }
 .fitbit-card.get-started .fitbit-card-sub { font-size: 0.7rem; }
 
 .fab-wrap {
-  position: fixed; bottom: 28px; right: 28px; z-index: 50;
+  position: fixed; bottom: 28px; right: 28px; z-index: 999;
 }
 .fab-menu {
   position: absolute; bottom: 100%; right: 0; margin-bottom: 10px;

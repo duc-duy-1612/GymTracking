@@ -42,7 +42,14 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/healthflow'
   .then(async () => {
     console.log('Connected to DB');
     await Exercise.deleteMany({});
-    await Exercise.insertMany(exercises);
+    
+    // Inject dynamic cal metrics based on cardio vs weight
+    const seededExercises = exercises.map(ex => ({
+      ...ex,
+      caloriesPerSet: ex.type === 'Cardio' ? 50 : Math.floor(Math.random() * 8) + 12
+    }));
+
+    await Exercise.insertMany(seededExercises);
     console.log('Seeded Exercises successfully.');
     process.exit(0);
   })

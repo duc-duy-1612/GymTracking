@@ -11,6 +11,7 @@ const exerciseSchema = new mongoose.Schema({
   imageUrl: { type: String, default: '' },
   videoUrl: { type: String, default: '' },
   restSeconds: { type: Number, default: 90 },
+  caloriesPerSet: { type: Number, default: 15 },
   sortOrder: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });

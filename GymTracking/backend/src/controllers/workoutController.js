@@ -1,5 +1,6 @@
 const Workout = require('../models/Workout');
 const Exercise = require('../models/Exercise');
+const DailySummary = require('../models/DailySummary');
 
 // @desc    Lưu lịch sử tập luyện
 // @route   POST /api/workouts
@@ -26,8 +27,41 @@ exports.createWorkout = async (req, res) => {
             date: new Date()
         });
 
+        // Tính lượng Calories tiêu thụ từ cơ sở dữ liệu bài tập
+        let totalCalories = 0;
+        if (exercises && exercises.length > 0) {
+            for (let ex of exercises) {
+                if (ex.exerciseId) {
+                    const exerciseData = await Exercise.findById(ex.exerciseId);
+                    // Dùng giá trị default 15 kcal/set nếu không có
+                    const calPerSet = exerciseData?.caloriesPerSet || 15;
+                    const setCount = ex.completedSets && ex.completedSets.length > 0 ? ex.completedSets.length : (ex.sets || 1);
+                    totalCalories += (calPerSet * setCount);
+                }
+            }
+        } else if (totalDurationMinutes) {
+            // Fallback nếu người dùng lưu tập nhanh (không chọn cụ thể bài)
+            totalCalories = totalDurationMinutes * 6; // trung bình 6 kcal/phút
+        }
+
+        workout.caloriesBurned = totalCalories;
         const savedWorkout = await workout.save();
-        res.status(201).json({ success: true, data: savedWorkout });
+
+        // Tích hợp hệ thống DailySummary: cộng dồn số Calo đốt được vào ngày hôm nay
+        const todayObj = new Date();
+        todayObj.setHours(0, 0, 0, 0);
+        let summary = await DailySummary.findOne({ 
+            userId: req.user.id, 
+            date: todayObj 
+        });
+
+        if (!summary) summary = new DailySummary({ userId: req.user.id, date: todayObj });
+        
+        summary.caloriesBurned = (summary.caloriesBurned || 0) + totalCalories;
+        summary.exercisedToday = true;
+        await summary.save();
+
+        res.status(201).json({ success: true, data: savedWorkout, caloriesBurned: totalCalories });
     } catch (error) {
         console.error('Lỗi khi tạo workout:', error);
         res.status(500).json({ success: false, message: 'Lỗi server khi lưu bài tập' });

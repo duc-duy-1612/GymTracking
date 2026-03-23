@@ -14,6 +14,7 @@ const nutritionSchema = new mongoose.Schema({
     protein: { type: Number, default: 0 },
     carbs: { type: Number, default: 0 },
     fat: { type: Number, default: 0 },
+    glucose: { type: Number, default: 0 },
   },
   quantity: { type: Number, default: 1 },
   unit: { type: String, default: 'portion' },

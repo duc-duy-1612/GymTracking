@@ -28,6 +28,7 @@ const workoutSchema = new mongoose.Schema({
     injuryNotes: { type: String },
   },
   totalDurationMinutes: { type: Number },
+  caloriesBurned: { type: Number, default: 0 },
 }, { timestamps: true });
 
 // Giữ tương thích: nếu không có exercises chi tiết, vẫn có muscleGroup + exercises cũ (name, sets, reps, weight)

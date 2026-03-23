@@ -13,6 +13,7 @@ const dailySummarySchema = new mongoose.Schema({
   mindfulMinutes: { type: Number, default: 0 },
   weightKg: { type: Number },
   glucoseMgDl: { type: Number },
+  glucoseConsumed: { type: Number, default: 0 },
 }, { timestamps: true, collection: 'daily_summaries' });
 
 dailySummarySchema.index({ userId: 1, date: 1 }, { unique: true });

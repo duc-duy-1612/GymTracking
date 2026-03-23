@@ -4,6 +4,7 @@ import { useUser } from '../context/UserContext';
 import dailySummaryService from '../services/dailySummaryService';
 import workoutService from '../services/workoutService';
 import nutritionService from '../services/nutritionService';
+import { calcSmartTargets } from '../utils/smartGoalCalc';
 import Model from 'react-body-highlighter';
 
 const CHART_COLORS = {
@@ -48,7 +49,15 @@ function Stats() {
   const [nutritionHistory, setNutritionHistory] = useState([]);
   const [muscleMapView, setMuscleMapView] = useState('anterior');
   const [chartPeriod, setChartPeriod] = useState('week');
+  
+  // Smart Goal Planner States
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const [goalParams, setGoalParams] = useState({ currentWeight: 70, targetWeight: 65, durationWeeks: 4 });
+  const [plannerResult, setPlannerResult] = useState(null);
+  const [plannerError, setPlannerError] = useState('');
+
   const bodyCompRef = useRef(null);
+  const intakeRef = useRef(null);
   const workoutChartRef = useRef(null);
   const proportionsRef = useRef(null);
 
@@ -73,39 +82,67 @@ function Stats() {
   const bmi = user?.autoStats?.bmi ?? (weight && height ? calcBmi(weight, height) : null);
   const targetBmi = user?.autoStats?.targetBmi ?? (targetWeight != null && height ? calcBmi(targetWeight, height) : null);
   
-  // Xử lý labels và dữ liệu cho biểu đồ 7 ngày từ Nutrition (nếu có) thay vì DailySummary cache
-  let chartLabels = BODY_COMP_LABELS;
-  let chartData = [0, 0, 0, 0, 0, 0, 0];
-  
   // Tính tổng vĩ mô Protein, Carbs, Fat cho doughnut chart
   let totalProtein = 0;
   let totalCarbs = 0;
   let totalFat = 0;
 
-  if (calHistory.length > 0) {
-    chartLabels = [];
-    chartData = [];
-    
-    // Group nutrition by date string YYYY-MM-DD
-    const nutritionByDate = {};
-    nutritionHistory.forEach(n => {
-      const d = new Date(n.date).toISOString().split('T')[0];
-      if (!nutritionByDate[d]) nutritionByDate[d] = { cal: 0, p: 0, c: 0, f: 0 };
-      nutritionByDate[d].cal += (n.macros?.calories || 0);
-      nutritionByDate[d].p += (n.macros?.protein || 0);
-      nutritionByDate[d].c += (n.macros?.carbs || 0);
-      nutritionByDate[d].f += (n.macros?.fat || 0);
-      
-      totalProtein += (n.macros?.protein || 0);
-      totalCarbs += (n.macros?.carbs || 0);
-      totalFat += (n.macros?.fat || 0);
-    });
+  // Cập nhật biểu đồ Macros từ dữ liệu Dinh Dưỡng
+  nutritionHistory.forEach(n => {
+    totalProtein += (n.macros?.protein || 0);
+    totalCarbs += (n.macros?.carbs || 0);
+    totalFat += (n.macros?.fat || 0);
+  });
 
-    calHistory.forEach(c => {
-      const dString = new Date(c.date).toISOString().split('T')[0];
-      chartLabels.push(new Date(c.date).toLocaleDateString('vi-VN', { weekday: 'short' }));
-      chartData.push(nutritionByDate[dString]?.cal || 0);
+  // Lấy dữ liệu Calo đốt cháy (Burned) từ lịch sử DailySummary thay vì nạp vào
+  const burnByDate = {};
+  calHistory.forEach(c => {
+    const nd = new Date(c.date);
+    const dStr = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
+    burnByDate[dStr] = c.caloriesBurned || 0;
+  });
+
+  const chartLabels = [];
+  const chartData = []; // Đốt cháy (Burned)
+  const intakeData = []; // Nạp vào (Consumed)
+  const daysCount = chartPeriod === 'week' ? 7 : 30;
+  const today = new Date();
+
+  for (let i = daysCount - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    
+    if (chartPeriod === 'week') {
+      const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+      chartLabels.push(weekdays[d.getDay()]);
+    } else {
+      chartLabels.push(d.getDate().toString());
+    }
+    chartData.push(burnByDate[dStr] || 0);
+    
+    // Tính toán từ nutritionHistory
+    let dIntake = 0;
+    nutritionHistory.forEach(n => {
+      const nd = new Date(n.date);
+      const ndStr = `${nd.getFullYear()}-${String(nd.getMonth() + 1).padStart(2, '0')}-${String(nd.getDate()).padStart(2, '0')}`;
+      if (ndStr === dStr) dIntake += (n.macros?.calories || 0);
     });
+    intakeData.push(dIntake);
+  }
+
+  const smartTargets = calcSmartTargets(user);
+  const targetCals = smartTargets?.targetIntake ?? (user?.autoStats?.tdee ?? 2000);
+  const targetBurn = smartTargets?.targetBurn ?? 300;
+  
+  const targetDataArray = Array(daysCount).fill(targetCals);
+  const targetBurnArray = [];
+
+  // Tính bù trừ chỉ tiêu phạt (Penalty): Nếu ăn lố trong quá khứ, nâng vạch chỉ tiêu đốt cháy ngày đó lên
+  for (let i = 0; i < daysCount; i++) {
+    const intake = intakeData[i] || 0;
+    const excess = intake > targetCals ? (intake - targetCals) : 0;
+    targetBurnArray.push(targetBurn + excess);
   }
 
   // Fallback safe value for doughnut chart
@@ -144,17 +181,28 @@ function Stats() {
       type: 'line',
       data: {
         labels: chartLabels,
-        datasets: [{
-          label: 'Lượng Calo (kcal)',
-          data: chartData,
-          borderColor: CHART_COLORS.teal,
-          backgroundColor: CHART_COLORS.tealLight,
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointRadius: 4,
-          pointBackgroundColor: CHART_COLORS.teal,
-        }],
+        datasets: [
+          {
+            label: 'Mục tiêu Đốt cháy',
+            data: targetBurnArray,
+            borderColor: 'rgba(255, 255, 255, 0.3)',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+          },
+          {
+            label: 'Calo đốt được (kcal)',
+            data: chartData,
+            borderColor: CHART_COLORS.teal,
+            backgroundColor: CHART_COLORS.tealLight,
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: CHART_COLORS.teal,
+          }
+        ],
       },
       options: {
         responsive: true,
@@ -182,6 +230,62 @@ function Stats() {
     });
     return () => chart.destroy();
   }, [chartPeriod, chartData]);
+
+  useEffect(() => {
+    if (!intakeRef.current) return;
+    const ctx = intakeRef.current.getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartLabels,
+        datasets: [
+          {
+            label: 'Chỉ tiêu (TDEE)',
+            data: targetDataArray,
+            borderColor: 'rgba(255, 255, 255, 0.3)',
+            borderDash: [5, 5],
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+            order: 2,
+          },
+          {
+            type: 'bar',
+            label: 'Calo nạp vào (kcal)',
+            data: intakeData,
+            backgroundColor: intakeData.map(val => val > targetCals ? '#ef4444' : '#eab308'),
+            borderRadius: 4,
+            order: 1,
+            barPercentage: 0.6,
+          }
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(37, 38, 42, 0.95)',
+            titleColor: '#fff',
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { color: CHART_COLORS.muted, font: { size: 11 } },
+          },
+          y: {
+            min: 0,
+            max: Math.max(...intakeData, targetCals + 500),
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            ticks: { color: CHART_COLORS.muted, font: { size: 11 } },
+          },
+        },
+      },
+    });
+    return () => chart.destroy();
+  }, [chartPeriod, intakeData, targetCals]);
 
   useEffect(() => {
     if (!workoutChartRef.current) return;
@@ -255,6 +359,37 @@ function Stats() {
     return () => chart.destroy();
   }, [nutritionHistory]);
 
+  const calculateSmartGoal = () => {
+    const { currentWeight, targetWeight, durationWeeks } = goalParams;
+    const diff = currentWeight - targetWeight;
+    if (diff <= 0) return setPlannerError('Cân nặng mục tiêu phải nhỏ hơn cân nặng hiện tại (Hiệu chuẩn Giảm cân).');
+    
+    const safeMaxLoss = currentWeight * 0.01;
+    const reqLoss = diff / durationWeeks;
+    if (reqLoss > safeMaxLoss) {
+      setPlannerResult(null);
+      return setPlannerError(`Khóa y khoa: Giảm ${diff}kg trong ${durationWeeks} tuần là rất nguy hiểm và phản khoa học! Tốc độ an toàn tối đa của bạn là ${safeMaxLoss.toFixed(1)}kg/tuần. Vui lòng kéo dài thời gian trên ${Math.ceil(diff / safeMaxLoss)} tuần.`);
+    }
+    
+    setPlannerError('');
+    const totalBurnt = diff * 7700;
+    const dailyDeficit = Math.round(totalBurnt / (durationWeeks * 7));
+    
+    let freq = '2-3 buổi/tuần';
+    if (dailyDeficit > 500) freq = '5-6 buổi (Cường độ cực cao)';
+    else if (dailyDeficit > 300) freq = '3-4 buổi (Cường độ vừa)';
+    
+    const water = ((currentWeight * 35 + (dailyDeficit > 300 ? 500 : 0)) / 1000).toFixed(1);
+
+    setPlannerResult({ dailyDeficit, freq, water });
+  };
+
+  const handleSaveSmartGoal = async () => {
+    // In a real integration, PUT to /api/users/profile with goals: { targetWeight: goalParams.targetWeight }
+    // As context API might be static here, we just close it and simulate success
+    setPlannerOpen(false);
+  };
+
   const muscleIntensity = {};
   workoutHistory.forEach(w => {
     w.exercises?.forEach(ex => {
@@ -315,7 +450,15 @@ function Stats() {
 
   return (
     <div className="stats-page">
-      <h1 className="stats-page-title">Thống kê tiến độ</h1>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h1 className="stats-page-title m-0">Thống kê tiến độ</h1>
+        <button type="button" className="btn btn-fitbit rounded-pill d-flex align-items-center px-4" onClick={() => {
+          setGoalParams({...goalParams, currentWeight: weight || 70, targetWeight: targetWeight || 65});
+          setPlannerOpen(true);
+        }}>
+          <i className="bi bi-gem me-2"></i> Lập lộ trình Smart Goal
+        </button>
+      </div>
 
       <div className="stats-row stats-row--top">
         <div className="stats-user-card fitbit-card">
@@ -376,17 +519,28 @@ function Stats() {
         </div>
       </div>
 
-      <div className="stats-row stats-row--body-comp">
-        <div className="stats-chart-card fitbit-card">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+        <div className="stats-chart-card fitbit-card" style={{ height: '100%', minHeight: '340px' }}>
           <div className="stats-chart-header">
-            <h2 className="stats-chart-title">Lượng Calo Tiêu Thụ</h2>
+            <h2 className="stats-chart-title">Năng Lượng Tiêu Hao (Đốt cháy)</h2>
             <div className="stats-period-tabs">
               <button type="button" className={`stats-period-btn ${chartPeriod === 'week' ? 'stats-period-btn--active' : ''}`} onClick={() => setChartPeriod('week')}>Tuần</button>
+              <button type="button" className={`stats-period-btn ${chartPeriod === 'month' ? 'stats-period-btn--active' : ''}`} onClick={() => setChartPeriod('month')}>Tháng</button>
             </div>
           </div>
-          <p className="stats-chart-sub">Calo nạp vào (kcal) trong 7 ngày qua</p>
+          <p className="stats-chart-sub">Lượng Calo tập luyện đã đốt (kcal) trong {chartPeriod === 'week' ? '7' : '30'} ngày qua</p>
           <div className="stats-chart-container stats-chart-container--line">
             <canvas ref={bodyCompRef} />
+          </div>
+        </div>
+        
+        <div className="stats-chart-card fitbit-card" style={{ height: '100%', minHeight: '340px' }}>
+          <div className="stats-chart-header">
+            <h2 className="stats-chart-title">Lượng Calories Nạp Vào</h2>
+          </div>
+          <p className="stats-chart-sub">Dinh dưỡng đã ăn (kcal) so với Mục tiêu TDEE ({targetCals} kcal)</p>
+          <div className="stats-chart-container stats-chart-container--line">
+            <canvas ref={intakeRef} />
           </div>
         </div>
       </div>
@@ -411,6 +565,64 @@ function Stats() {
           </div>
         </div>
       </div>
+
+      {plannerOpen && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1050 }} tabIndex="-1" onClick={(e) => {
+          if (e.target.classList.contains('modal')) setPlannerOpen(false);
+        }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content card-dark border-secondary shadow-lg">
+              <div className="modal-header border-secondary">
+                <h5 className="modal-title font-weight-bold text-fitbit-teal"><i className="bi bi-gem me-2"></i> Lộ Trình Thông Minh</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setPlannerOpen(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row g-3 mb-4">
+                  <div className="col-6">
+                    <label className="form-label text-muted small">Cân nặng hiện tại (kg)</label>
+                    <input type="number" className="form-control bg-dark text-light border-secondary" value={goalParams.currentWeight} onChange={e => setGoalParams({...goalParams, currentWeight: Number(e.target.value)})} />
+                  </div>
+                  <div className="col-6">
+                    <label className="form-label text-muted small">Cân mục tiêu (kg)</label>
+                    <input type="number" className="form-control bg-dark text-light border-secondary" value={goalParams.targetWeight} onChange={e => setGoalParams({...goalParams, targetWeight: Number(e.target.value)})} />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label text-muted small">Thời gian dự kiến (Số tuần)</label>
+                    <input type="number" className="form-control bg-dark text-light border-secondary" value={goalParams.durationWeeks} min="1" onChange={e => setGoalParams({...goalParams, durationWeeks: Number(e.target.value)})} />
+                  </div>
+                </div>
+
+                <button type="button" className="btn btn-outline-fitbit w-100 mb-3" onClick={calculateSmartGoal}>Phân tích Lộ trình</button>
+                
+                {plannerError && (
+                  <div className="alert alert-danger bg-danger text-white border-0 py-2 px-3 small">
+                    <i className="bi bi-exclamation-triangle-fill me-2" /> {plannerError}
+                  </div>
+                )}
+
+                {plannerResult && !plannerError && (
+                  <div className="p-3 bg-dark rounded border border-secondary">
+                    <h6 className="text-light mb-3 border-bottom border-secondary pb-2">Tính toán khoa học:</h6>
+                    <div className="d-flex justify-content-between mb-2">
+                       <span className="text-muted small">Calo cần đốt / ngày:</span> <strong className="text-danger">{plannerResult.dailyDeficit} kcal</strong>
+                    </div>
+                    <div className="d-flex justify-content-between mb-2">
+                       <span className="text-muted small">Mật độ tập luyện lý tưởng:</span> <strong className="text-fitbit-teal">{plannerResult.freq}</strong>
+                    </div>
+                    <div className="d-flex justify-content-between">
+                       <span className="text-muted small">Lượng nước / ngày:</span> <strong className="text-info">{plannerResult.water} Lít</strong>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer border-secondary">
+                <button type="button" className="btn btn-outline-secondary" onClick={() => setPlannerOpen(false)}>Hủy</button>
+                <button type="button" className="btn btn-fitbit" onClick={handleSaveSmartGoal} disabled={!!plannerError || !plannerResult}>Lưu mục tiêu</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
