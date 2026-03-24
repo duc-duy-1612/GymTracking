@@ -33,16 +33,29 @@ exports.createWorkout = async (req, res) => {
             for (let ex of exercises) {
                 if (ex.exerciseId) {
                     const exerciseData = await Exercise.findById(ex.exerciseId);
-                    // Dùng giá trị default 15 kcal/set nếu không có
                     const calPerSet = exerciseData?.caloriesPerSet || 15;
-                    const setCount = ex.completedSets && ex.completedSets.length > 0 ? ex.completedSets.length : (ex.sets || 1);
+                    const setCount = ex.completedSets && ex.completedSets.length > 0
+                        ? ex.completedSets.length
+                        : (ex.sets || 1);
                     totalCalories += (calPerSet * setCount);
+                } else {
+                    // Exercise không có ID trong DB → dùng mức chuẩn 15 kcal/set
+                    const setCount = ex.completedSets && ex.completedSets.length > 0
+                        ? ex.completedSets.length
+                        : (ex.sets || 1);
+                    totalCalories += (15 * setCount);
                 }
             }
-        } else if (totalDurationMinutes) {
-            // Fallback nếu người dùng lưu tập nhanh (không chọn cụ thể bài)
-            totalCalories = totalDurationMinutes * 6; // trung bình 6 kcal/phút
         }
+        // Bổ sung calo từ thời gian tập thực tế (6 kcal/phút) nếu có
+        if (totalDurationMinutes && totalDurationMinutes > 0) {
+            const durationCals = totalDurationMinutes * 6;
+            // Lấy max giữa 2 phương pháp (tránh undercount khi duration dài)
+            totalCalories = Math.max(totalCalories, durationCals);
+        }
+        // Đảm bảo mỗi buổi tập đều ghi ít nhất 30 kcal
+        if (totalCalories < 30) totalCalories = 30;
+
 
         workout.caloriesBurned = totalCalories;
         const savedWorkout = await workout.save();

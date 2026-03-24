@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import dailySummaryService from '../services/dailySummaryService';
+import workoutService from '../services/workoutService';
 import { useUser } from '../context/UserContext';
 import toast from 'react-hot-toast';
 import { calcSmartTargets } from '../utils/smartGoalCalc';
@@ -55,30 +56,51 @@ function Today() {
   useEffect(() => {
     Promise.all([
       dailySummaryService.getToday(),
-      dailySummaryService.getHistory()
-    ]).then(([todayRes, historyRes]) => {
+      dailySummaryService.getHistory(),
+      workoutService.getHistory()
+    ]).then(([todayRes, historyRes, workoutRes]) => {
+      const workouts = workoutRes.data?.data || [];
+
+      // Tính caloriesBurned hôm nay từ Workout records (đáng tin cậy hơn DailySummary cache)
+      const todayStr = new Date().toDateString();
+      const todayBurned = workouts
+        .filter(w => new Date(w.date).toDateString() === todayStr)
+        .reduce((sum, w) => {
+          const cal = w.caloriesBurned > 0 ? w.caloriesBurned : (w.totalDurationMinutes || 0) * 6;
+          return sum + cal;
+        }, 0);
+      const hasWorkedOutToday = workouts.some(w => new Date(w.date).toDateString() === todayStr);
+
       setSummary({
         waterMl: todayRes.data.waterMl ?? 0,
         caloriesConsumed: todayRes.data.caloriesConsumed ?? 0,
-        caloriesBurned: todayRes.data.caloriesBurned ?? 0,
+        caloriesBurned: todayBurned || todayRes.data.caloriesBurned || 0,
         glucoseConsumed: todayRes.data.glucoseConsumed ?? 0,
         sleepMinutes: todayRes.data.sleepMinutes,
-        exercisedToday: todayRes.data.exercisedToday ?? false,
+        exercisedToday: hasWorkedOutToday || todayRes.data.exercisedToday || false,
       });
 
-      // Xây dựng mảng Activity cho 7 ngày của tuần (Sun -> Sat)
+      // Xây dựng mảng Activity cho 7 ngày của tuần (Sun -> Sat) từ Workout records
       const dataArr = Array(7).fill(0);
+      workouts.forEach(w => {
+        const d = new Date(w.date);
+        const today = new Date();
+        const diffDays = Math.floor((today - d) / (1000 * 60 * 60 * 24));
+        if (diffDays >= 0 && diffDays <= 7) {
+          const cal = w.caloriesBurned > 0 ? w.caloriesBurned : (w.totalDurationMinutes || 0) * 6;
+          dataArr[d.getDay()] = Math.max(dataArr[d.getDay()], cal);
+        }
+      });
+      // Fallback: bổ sung từ DailySummary history nếu workout records không có
       const historyItems = historyRes.data?.data || [];
       const today = new Date();
       historyItems.forEach(day => {
         const d = new Date(day.date);
         const diffDays = Math.floor((today - d) / (1000 * 60 * 60 * 24));
-        if (diffDays >= 0 && diffDays <= 7) {
-          dataArr[d.getDay()] = Math.max(dataArr[d.getDay()], day.caloriesBurned || 0);
+        if (diffDays >= 0 && diffDays <= 7 && day.caloriesBurned > 0) {
+          dataArr[d.getDay()] = Math.max(dataArr[d.getDay()], day.caloriesBurned);
         }
       });
-      // Ghi đè ngày hiện tại từ Today API để khớp tiến độ mới nhất
-      dataArr[today.getDay()] = Math.max(dataArr[today.getDay()], todayRes.data.caloriesBurned || 0);
       setWeekData(dataArr);
 
     }).catch(() => {
@@ -103,7 +125,10 @@ function Today() {
   const burnPct = Math.round(((summary.caloriesBurned || 0) / targetBurn) * 100);
 
   // Chuẩn lâm sàng nạp đường theo Hiệp hội Tim mạch Hoa Kỳ (AHA) / WHO
-  const targetGlucose = user?.gender === 'male' ? 36 : 25; 
+  // Theo WHO: Lượng đường tự do (free sugars) nên dưới 10% tổng lượng calo/ngày, và tối ưu là dưới 5% 
+  // Ở đây tính mức tối ưu 5% lượng calo mục tiêu (baseTargetCalories) đã cá nhân hóa theo giới tính, độ tuổi, chiều cao...
+  const targetGlucose = Math.round((baseTargetCalories * 0.05) / 4) || (user?.gender === 'male' ? 36 : 25);
+
   const consumedGlucose = summary.glucoseConsumed || 0;
   const glucosePct = Math.round((consumedGlucose / targetGlucose) * 100);
 
@@ -145,7 +170,7 @@ function Today() {
           <div className="fitbit-card">
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Food</p>
-              <p className="fitbit-card-value">{consumed} / {baseTargetCalories} cal</p>
+              <p className="fitbit-card-value">{consumed} / {baseTargetCalories} kcal</p>
               <p className="fitbit-card-sub" style={{ color: remainingCalories >= 0 ? 'var(--fitbit-muted)' : '#ef4444' }}>
                 {remainingCalories >= 0 ? `Còn hạn mức ${remainingCalories} kcal` : `Đã lố ${excessCals} kcal! Phải tập bù`}
               </p>
@@ -183,12 +208,12 @@ function Today() {
                   const heightPct = isZero ? 15 : Math.max(15, Math.min(100, Math.round((val / maxVal) * 100)));
                   // Tính opacity: từ 0.3 lên tối đa 1.0 tùy theo mức độ hoạt động. 
                   const opacity = isZero ? 0.1 : Math.max(0.4, val / maxVal);
-                  
+
                   return (
-                    <div key={d + i} style={{ 
-                      flex: 1, 
+                    <div key={d + i} style={{
+                      flex: 1,
                       borderRadius: '4px',
-                      height: `${heightPct}%`, 
+                      height: `${heightPct}%`,
                       background: isZero ? 'rgba(255,255,255,0.05)' : `rgba(0, 176, 185, ${opacity})`,
                       transition: 'all 0.4s ease'
                     }} />
@@ -205,13 +230,13 @@ function Today() {
           <div className="fitbit-card">
             <div className="fitbit-card-body">
               <p className="fitbit-card-title">Energy burned</p>
-              <p className="fitbit-card-value">{(summary.caloriesBurned ?? 0).toLocaleString()} / {targetBurn} cal</p>
+              <p className="fitbit-card-value">{(summary.caloriesBurned ?? 0).toLocaleString()} / {targetBurn} kcal</p>
               <p className="fitbit-card-sub" style={{ color: (summary.caloriesBurned || 0) >= targetBurn ? '#10b981' : '#f87171' }}>
-                {(summary.caloriesBurned || 0) >= targetBurn 
-                  ? 'Đã đạt chỉ tiêu!' 
-                  : (excessCals > 0 
-                      ? `Phạt: Cần đốt thêm ${targetBurn - (summary.caloriesBurned || 0)} kcal do lố ăn uống` 
-                      : `Bạn cần đốt thêm ${targetBurn - (summary.caloriesBurned || 0)} kcal`)}
+                {(summary.caloriesBurned || 0) >= targetBurn
+                  ? 'Đã đạt chỉ tiêu!'
+                  : (excessCals > 0
+                    ? `Phạt: Cần đốt thêm ${targetBurn - (summary.caloriesBurned || 0)} kcal do lố ăn uống`
+                    : `Bạn cần đốt thêm ${targetBurn - (summary.caloriesBurned || 0)} kcal`)}
               </p>
             </div>
             <ProgressRing progress={burnPct} color="#f43f5e" iconClass="bi bi-fire" />
@@ -227,8 +252,8 @@ function Today() {
               <p className="fitbit-card-title">Weight</p>
               <p className="fitbit-card-value">{user?.measurements?.weight ?? '—'} kg</p>
               <p className="fitbit-card-sub" style={{ color: 'var(--fitbit-teal)' }}>
-                {user?.goals?.targetWeight && user?.measurements?.weight 
-                  ? `Còn ${Math.abs(user.measurements.weight - user.goals.targetWeight).toFixed(1)} kg tới mục tiêu!` 
+                {user?.goals?.targetWeight && user?.measurements?.weight
+                  ? `Còn ${Math.abs(user.measurements.weight - user.goals.targetWeight).toFixed(1)} kg tới mục tiêu!`
                   : 'Chưa cập nhật từ hồ sơ'}
               </p>
             </div>
