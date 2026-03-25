@@ -63,13 +63,13 @@ exports.createWorkout = async (req, res) => {
         // Tích hợp hệ thống DailySummary: cộng dồn số Calo đốt được vào ngày hôm nay
         const todayObj = new Date();
         todayObj.setHours(0, 0, 0, 0);
-        let summary = await DailySummary.findOne({ 
-            userId: req.user.id, 
-            date: todayObj 
+        let summary = await DailySummary.findOne({
+            userId: req.user.id,
+            date: todayObj
         });
 
         if (!summary) summary = new DailySummary({ userId: req.user.id, date: todayObj });
-        
+
         summary.caloriesBurned = (summary.caloriesBurned || 0) + totalCalories;
         summary.exercisedToday = true;
         await summary.save();

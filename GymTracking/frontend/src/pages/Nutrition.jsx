@@ -19,6 +19,14 @@ function Nutrition() {
   const [libraryFoods, setLibraryFoods] = useState([]);
   const [activeMealTab, setActiveMealTab] = useState('Breakfast');
   const [showAllLibrary, setShowAllLibrary] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('');
+
+  const FOOD_CATEGORIES = [
+    '', 'Bánh, kẹo, đồ ngọt', 'Canh', 'Cháo', 'Cơm phần',
+    'Đồ ăn liền', 'Đồ ăn tiện lợi', 'Đồ ăn vặt', 'Đồ uống',
+    'Món mặn', 'Món sợi', 'Món trứng', 'Nước giải khát', 'Quả chín', 'Xôi'
+  ];
+
   const rowRef = useRef(null);
   const isDown = useRef(false);
   const startX = useRef(0);
@@ -40,8 +48,8 @@ function Nutrition() {
   };
 
   useEffect(() => {
-    nutritionService.getFoods('', '').then(res => setLibraryFoods(res.data.data)).catch(console.error);
-  }, []);
+    nutritionService.getFoods('', selectedCategory).then(res => setLibraryFoods(res.data.data)).catch(console.error);
+  }, [selectedCategory]);
 
   useEffect(() => {
     nutritionService.getFoods('', 'Cá nhân').then(res => setQuickMeals(res.data.data)).catch(console.error);
@@ -220,16 +228,37 @@ function Nutrition() {
             <h2 className="today-section-title" style={{ margin: 0 }}>Thư viện món ăn</h2>
             <button className="coach-see-all" onClick={() => setShowAllLibrary(true)}>Xem tất cả</button>
           </div>
-          <div className="coach-filters" style={{ marginBottom: '1rem', padding: '0 0.5rem', display: 'flex', flexWrap: 'wrap', gap: '8px', overflowX: 'visible' }}>
-            {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(meal => (
-              <button 
-                key={meal} 
-                className={`coach-pill ${activeMealTab === meal ? 'coach-pill--active' : ''}`}
-                onClick={() => setActiveMealTab(meal)}
-              >
-                {meal === 'Breakfast' ? 'Bữa sáng' : meal === 'Lunch' ? 'Bữa trưa' : meal === 'Dinner' ? 'Bữa tối' : 'Bữa phụ'}
-              </button>
-            ))}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '1rem' }}>
+            <div className="coach-filters" style={{ padding: 0, display: 'flex', flexWrap: 'wrap', gap: '8px', overflowX: 'visible', flex: 1 }}>
+              {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(meal => (
+                <button 
+                  key={meal} 
+                  className={`coach-pill ${activeMealTab === meal ? 'coach-pill--active' : ''}`}
+                  onClick={() => setActiveMealTab(meal)}
+                >
+                  {meal === 'Breakfast' ? 'Bữa sáng' : meal === 'Lunch' ? 'Bữa trưa' : meal === 'Dinner' ? 'Bữa tối' : 'Bữa phụ'}
+                </button>
+              ))}
+            </div>
+            <select
+              value={selectedCategory}
+              onChange={e => setSelectedCategory(e.target.value)}
+              style={{
+                background: 'var(--fitbit-card)',
+                color: 'var(--fitbit-text)',
+                border: '1px solid rgba(255,255,255,0.15)',
+                borderRadius: '20px',
+                padding: '6px 14px',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                outline: 'none',
+                minWidth: '130px'
+              }}
+            >
+              {FOOD_CATEGORIES.map(cat => (
+                <option key={cat} value={cat}>{cat === '' ? '📦 Tất cả loại' : cat}</option>
+              ))}
+            </select>
           </div>
           <div 
             className="coach-card-row hide-scrollbar" 
@@ -328,16 +357,37 @@ function Nutrition() {
               </button>
             </div>
             
-            <div className="coach-filters" style={{ marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '8px', overflowX: 'visible' }}>
-              {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(meal => (
-                <button 
-                  key={meal} 
-                  className={`coach-pill ${activeMealTab === meal ? 'coach-pill--active' : ''}`}
-                  onClick={() => setActiveMealTab(meal)}
-                >
-                  {meal === 'Breakfast' ? 'Bữa sáng' : meal === 'Lunch' ? 'Bữa trưa' : meal === 'Dinner' ? 'Bữa tối' : 'Bữa phụ'}
-                </button>
-              ))}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div className="coach-filters" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', overflowX: 'visible', flex: 1 }}>
+                {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(meal => (
+                  <button 
+                    key={meal} 
+                    className={`coach-pill ${activeMealTab === meal ? 'coach-pill--active' : ''}`}
+                    onClick={() => setActiveMealTab(meal)}
+                  >
+                    {meal === 'Breakfast' ? 'Bữa sáng' : meal === 'Lunch' ? 'Bữa trưa' : meal === 'Dinner' ? 'Bữa tối' : 'Bữa phụ'}
+                  </button>
+                ))}
+              </div>
+              <select
+                value={selectedCategory}
+                onChange={e => setSelectedCategory(e.target.value)}
+                style={{
+                  background: 'var(--fitbit-bg)',
+                  color: 'var(--fitbit-text)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  borderRadius: '20px',
+                  padding: '6px 14px',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  minWidth: '140px'
+                }}
+              >
+                {FOOD_CATEGORIES.map(cat => (
+                  <option key={cat} value={cat}>{cat === '' ? '📦 Tất cả loại' : cat}</option>
+                ))}
+              </select>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px', overflowY: 'auto', paddingRight: '10px' }} className="hide-scrollbar">

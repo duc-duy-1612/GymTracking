@@ -13,7 +13,7 @@ exports.getFoods = async (req, res) => {
     if (req.query.category) {
       filter.category = req.query.category;
     }
-    const foods = await FoodItem.find(filter).sort({ createdAt: -1 }).limit(20);
+    const foods = await FoodItem.find(filter).sort({ category: 1, name: 1 });
     res.status(200).json({ success: true, data: foods });
   } catch (error) {
     console.error('Lỗi khi lấy danh sách món ăn:', error);
