@@ -7,16 +7,16 @@ const scripts = [
   'seedInstructors.js',
   'seedCoachClasses.js',
   'seedBrands.js',
-  'seedFoods.js',
+  'seedFoodItems.js',
   'seedExercises.js'
 ];
 
 for (const script of scripts) {
   try {
-    console.log(`\n=> Running \${script}...`);
-    execSync(`node \${script}`, { stdio: 'inherit' });
+    console.log(`\n=> Running ${script}...`);
+    execSync(`node ${script}`, { stdio: 'inherit' });
   } catch (err) {
-    console.error(`Error running \${script}:`, err.message);
+    console.error(`Error running ${script}:`, err.message);
     process.exit(1);
   }
 }

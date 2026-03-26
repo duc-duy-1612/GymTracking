@@ -150,19 +150,6 @@ function Today() {
 
   return (
     <div className="today-sections">
-      <section className="today-section">
-        <h2 className="today-section-title">Sleep</h2>
-        <div className="today-cards today-cards--1col">
-          <div className="fitbit-card">
-            <div className="fitbit-card-body">
-              <p className="fitbit-card-title">Sleep duration</p>
-              <p className="fitbit-card-value">{summary.sleepMinutes != null ? `${Math.floor(summary.sleepMinutes / 60)}h ${summary.sleepMinutes % 60}m` : 'Chưa có dữ liệu'}</p>
-              <p className="fitbit-card-sub">{summary.sleepMinutes != null ? 'Hôm nay' : 'Thêm từ nút + bên dưới'}</p>
-            </div>
-            <div className="fitbit-card-icon purple"><i className="bi bi-moon-stars" /></div>
-          </div>
-        </div>
-      </section>
 
       <section className="today-section">
         <h2 className="today-section-title">Nutrition</h2>
@@ -200,7 +187,7 @@ function Today() {
               <p className="fitbit-card-sub">This week (Cals burned)</p>
             </div>
             <div className="exercise-week-wrap">
-              <div className="exercise-bars" style={{ display: 'flex', alignItems: 'flex-end', height: '40px', gap: '4px' }}>
+              <div className="exercise-bars" style={{ display: 'flex', alignItems: 'flex-end', height: '40px', gap: '5px' }}>
                 {WEEK_DAYS.map((d, i) => {
                   const val = weekData[i];
                   const maxVal = Math.max(...weekData, 1); // fix div by 0
@@ -211,7 +198,7 @@ function Today() {
 
                   return (
                     <div key={d + i} style={{
-                      flex: 1,
+                      width: '18px',
                       borderRadius: '4px',
                       height: `${heightPct}%`,
                       background: isZero ? 'rgba(255,255,255,0.05)' : `rgba(0, 176, 185, ${opacity})`,
@@ -257,7 +244,21 @@ function Today() {
                   : 'Chưa cập nhật từ hồ sơ'}
               </p>
             </div>
-            <div className="fitbit-card-icon teal"><i className="bi bi-speedometer2" /></div>
+            {(() => {
+              const cw = user?.measurements?.weight;
+              const tw = user?.goals?.targetWeight;
+              if (!cw || !tw) {
+                return <ProgressRing progress={0} color="var(--fitbit-teal)" iconClass="bi bi-speedometer2" />;
+              }
+              // Ước lượng điểm xuất phát: +10% so mục tiêu (hành trình chuẩn)
+              const startW = tw < cw ? Math.max(cw, tw * 1.1) : Math.min(cw, tw * 0.9);
+              const totalJourney = Math.abs(startW - tw);
+              const remaining = Math.abs(cw - tw);
+              const pct = Math.round(Math.max(0, Math.min(100, ((totalJourney - remaining) / totalJourney) * 100)));
+              const done = Math.abs(cw - tw) < 0.5;
+              const color = done ? '#22c55e' : pct >= 60 ? '#00B0B9' : '#f97316';
+              return <ProgressRing progress={pct} color={color} iconClass="bi bi-speedometer2" />;
+            })()}
           </div>
           <div className="fitbit-card">
             <div className="fitbit-card-body">
@@ -269,13 +270,29 @@ function Today() {
             </div>
             <ProgressRing progress={glucosePct} color={consumedGlucose > targetGlucose ? "#ef4444" : "#f43f5e"} iconClass="bi bi-droplet-half" />
           </div>
-          <div className="fitbit-card get-started">
+          <div className="fitbit-card">
             <div className="fitbit-card-body">
-              <p className="fitbit-card-title">Mindful days</p>
-              <p className="fitbit-card-value">Get started</p>
-              <p className="fitbit-card-sub">Tap to set up</p>
+              <p className="fitbit-card-title">Sleep</p>
+              <p className="fitbit-card-value">
+                {summary.sleepMinutes != null
+                  ? `${Math.floor(summary.sleepMinutes / 60)}h ${summary.sleepMinutes % 60}m`
+                  : 'Chưa có'}
+              </p>
+              {(() => {
+                const targetSleepMins = user?.gender === 'female' ? 8 * 60 : 7 * 60;
+                const sm = summary.sleepMinutes;
+                if (sm == null) return <p className="fitbit-card-sub">Mục tiêu: {targetSleepMins / 60}h</p>;
+                if (sm < targetSleepMins) return <p className="fitbit-card-sub" style={{ color: '#ef4444' }}>Thiếu {Math.floor((targetSleepMins - sm) / 60)}h {(targetSleepMins - sm) % 60}m</p>;
+                return <p className="fitbit-card-sub" style={{ color: '#22c55e' }}>Đã đủ giấc ✅</p>;
+              })()}
             </div>
-            <div className="fitbit-card-icon purple"><i className="bi bi-brain" /></div>
+            {(() => {
+              const targetSleepMins = user?.gender === 'female' ? 8 * 60 : 7 * 60;
+              const sm = summary.sleepMinutes || 0;
+              const pct = Math.round((sm / targetSleepMins) * 100);
+              const color = sm === 0 ? 'var(--fitbit-muted)' : sm < targetSleepMins ? '#ef4444' : '#22c55e';
+              return <ProgressRing progress={pct} color={color} iconClass="bi bi-moon-stars" />;
+            })()}
           </div>
         </div>
       </section>

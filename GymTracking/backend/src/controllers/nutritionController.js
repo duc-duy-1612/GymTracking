@@ -73,10 +73,16 @@ exports.addMeal = async (req, res) => {
 // @access  Private
 exports.getNutritionHistory = async (req, res) => {
   try {
-    // Cho phép lọc theo ngày nếu có query param ?date=YYYY-MM-DD
     let filter = { userId: req.user.id };
 
-    if (req.query.date) {
+    if (req.query.startDate && req.query.endDate) {
+      // Tìm từ đầu ngày startDate đến cuối ngày endDate
+      filter.date = {
+        $gte: new Date(req.query.startDate),
+        $lte: new Date(`${req.query.endDate}T23:59:59.999Z`)
+      };
+    } else if (req.query.date) {
+      // Giữ lại logic cũ cho 1 ngày
       const queryDate = new Date(req.query.date);
       const nextDate = new Date(queryDate);
       nextDate.setDate(nextDate.getDate() + 1);

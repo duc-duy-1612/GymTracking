@@ -29,8 +29,20 @@ const getBrands = async (req, res) => {
   }
 };
 
+const getClassesByInstructor = async (req, res) => {
+  try {
+    const { instructorId } = req.params;
+    const classes = await CoachClass.find({ instructorId }).sort({ createdAt: -1 });
+    res.json({ success: true, data: classes });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   getClasses,
   getInstructors,
   getBrands,
+  getClassesByInstructor,
 };
+

@@ -138,8 +138,13 @@ function Coach() {
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [seeAllModal, setSeeAllModal] = useState(null);
-  const [playingVideo, setPlayingVideo] = useState(null); // The video URL to play
+  const [playingVideo, setPlayingVideo] = useState(null);
   const [favoriteIds, setFavoriteIds] = useState([]);
+
+  // Instructor detail modal
+  const [selectedInstructor, setSelectedInstructor] = useState(null);
+  const [instructorClasses, setInstructorClasses] = useState([]);
+  const [loadingInstructorClasses, setLoadingInstructorClasses] = useState(false);
 
   const instructorsCarouselRef = useRef(null);
   const brandsCarouselRef = useRef(null);
@@ -157,6 +162,25 @@ function Coach() {
       setFavoriteIds(user.favoriteCoachClasses);
     }
   }, [user]);
+
+  const handleInstructorClick = async (inst) => {
+    setSelectedInstructor(inst);
+    setInstructorClasses([]);
+    setLoadingInstructorClasses(true);
+    try {
+      const res = await coachService.getClassesByInstructor(inst._id);
+      setInstructorClasses(res.data.data || []);
+    } catch (err) {
+      console.error('Lỗi khi tải lớp học của HLV:', err);
+    } finally {
+      setLoadingInstructorClasses(false);
+    }
+  };
+
+  const closeInstructorModal = () => {
+    setSelectedInstructor(null);
+    setInstructorClasses([]);
+  };
 
   const toggleFavorite = async (e, classId) => {
     if (e) e.stopPropagation();
@@ -354,7 +378,13 @@ function Coach() {
           <div ref={instructorsCarouselRef} className="coach-instructor-row coach-carousel-track">
             {instructors.length > 0 && Array.from({ length: COPIES }, (_, copy) =>
               instructors.map((inst, i) => (
-                <div key={`inst-${copy}-${inst._id || i}`} className="coach-instructor-card">
+                <div
+                  key={`inst-${copy}-${inst._id || i}`}
+                  className="coach-instructor-card"
+                  onClick={() => handleInstructorClick(inst)}
+                  style={{ cursor: 'pointer' }}
+                  title={`Xem lớp học của ${inst.name}`}
+                >
                   <div className="coach-instructor-avatar-wrap">
                     <img src={inst.image} alt={inst.name} className="coach-instructor-avatar" />
                   </div>
@@ -416,7 +446,13 @@ function Coach() {
               {seeAllModal === 'instructors' && (
                 <div className="coach-modal-instructors">
                   {instructors.map((inst, i) => (
-                    <div key={i} className="coach-instructor-card">
+                    <div
+                      key={i}
+                      className="coach-instructor-card"
+                      onClick={() => { setSeeAllModal(null); handleInstructorClick(inst); }}
+                      style={{ cursor: 'pointer' }}
+                      title={`Xem lớp học của ${inst.name}`}
+                    >
                       <div className="coach-instructor-avatar-wrap">
                         <img src={inst.image} alt={inst.name} className="coach-instructor-avatar" />
                       </div>
@@ -449,6 +485,57 @@ function Coach() {
                   ))}
                   {seeAllModal === 'Fitness' && fitnessFiltered.map((item, i) => (
                     <CoachCard key={item._id || i} item={item} onClickPlay={handlePlayVideo} isFavorite={favoriteIds.includes(item._id)} onToggleFavorite={toggleFavorite} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INSTRUCTOR DETAIL MODAL */}
+      {selectedInstructor && (
+        <div className="coach-modal-overlay" onClick={closeInstructorModal} role="presentation">
+          <div className="coach-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '800px', width: '90%' }}>
+            <div className="coach-modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <img
+                  src={selectedInstructor.image}
+                  alt={selectedInstructor.name}
+                  style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--fitbit-accent, #00b4d8)' }}
+                />
+                <div>
+                  <h3 className="coach-modal-title" style={{ marginBottom: '2px' }}>{selectedInstructor.name}</h3>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--fitbit-muted)' }}>{selectedInstructor.role}</p>
+                </div>
+              </div>
+              <button type="button" className="coach-modal-close" onClick={closeInstructorModal} aria-label="Đóng">
+                <i className="bi bi-x-lg" />
+              </button>
+            </div>
+            <div className="coach-modal-body">
+              {loadingInstructorClasses && (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--fitbit-muted)' }}>
+                  <i className="bi bi-arrow-repeat" style={{ fontSize: '2rem', animation: 'spin 1s linear infinite', display: 'block', marginBottom: '8px' }} />
+                  Đang tải lớp học...
+                </div>
+              )}
+              {!loadingInstructorClasses && instructorClasses.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--fitbit-muted)' }}>
+                  <i className="bi bi-calendar-x" style={{ fontSize: '2.5rem', display: 'block', marginBottom: '10px' }} />
+                  <p>Chưa có lớp học nào của huấn luyện viên này.</p>
+                </div>
+              )}
+              {!loadingInstructorClasses && instructorClasses.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', padding: '1rem 0', justifyContent: 'center' }}>
+                  {instructorClasses.map((item, i) => (
+                    <CoachCard
+                      key={item._id || i}
+                      item={item}
+                      onClickPlay={handlePlayVideo}
+                      isFavorite={favoriteIds.includes(item._id)}
+                      onToggleFavorite={toggleFavorite}
+                    />
                   ))}
                 </div>
               )}

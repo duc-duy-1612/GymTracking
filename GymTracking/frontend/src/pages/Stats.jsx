@@ -60,7 +60,7 @@ function Stats() {
 
   const bodyCompRef = useRef(null);
   const intakeRef = useRef(null);
-  const workoutChartRef = useRef(null);
+  const sleepChartRef = useRef(null);
   const proportionsRef = useRef(null);
 
   useEffect(() => {
@@ -72,7 +72,8 @@ function Stats() {
     ]).then(([todayRes, workoutRes, historyRes, nutRes]) => {
       setTodaySummary(todayRes.data);
       setWorkoutHistory(workoutRes.data?.data || []);
-      setCalHistory(historyRes.data?.reverse() || []);
+      const hist = historyRes.data?.data || historyRes.data || [];
+      setCalHistory([...hist].reverse());
       setNutritionHistory(nutRes.data?.data || []);
     }).catch(err => console.error('Lỗi lấy thống kê', err));
   }, []);
@@ -168,25 +169,34 @@ function Stats() {
     { label: 'Fat (Chất béo)', value: totalFat, color: '#00B0B9' }, // fitbit-teal
   ];
 
-  const workoutWeek = [0, 0, 0, 0, 0, 0, 0];
-  workoutHistory.forEach(w => {
-    const d = new Date(w.date);
-    const now = new Date();
-    if ((now - d) / (1000 * 60 * 60 * 24) <= 7) {
-      let mins = w.totalDurationMinutes > 0 ? w.totalDurationMinutes : 0;
-      // Nếu không có totalDurationMinutes, tính từ số sets thực tế (90s tập + 20s nghỉ = 110s/set)
-      if (mins === 0 && w.exercises && w.exercises.length > 0) {
-        const totalSecs = w.exercises.reduce((sum, ex) => {
-          const setCount = ex.completedSets?.length > 0 ? ex.completedSets.length : (ex.sets || 1);
-          return sum + setCount * 110; // 90s work + 20s rest
-        }, 0);
-        mins = Math.max(1, Math.round(totalSecs / 60));
-      }
-      workoutWeek[d.getDay()] += mins;
+  // Mục tiêu ngủ theo giới tính (phút)
+  const targetSleepMins = user?.gender === 'female' ? 8 * 60 : 7 * 60;
+
+  // Xây dựng dữ liệu giấc ngủ 7 ngày (CN → T7) từ calHistory
+  const SLEEP_WEEK_LABELS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  const sleepWeek = [null, null, null, null, null, null, null]; // null = chưa có dữ liệu
+  const todayForSleep = new Date();
+  calHistory.forEach(h => {
+    const d = new Date(h.date);
+    const diffDays = Math.round((todayForSleep - d) / (1000 * 60 * 60 * 24));
+    if (diffDays >= 0 && diffDays <= 6 && h.sleepMinutes != null) {
+      sleepWeek[d.getDay()] = h.sleepMinutes;
     }
   });
+  // Thêm dữ liệu hôm nay từ todaySummary nếu có
+  if (todaySummary?.sleepMinutes != null) {
+    sleepWeek[todayForSleep.getDay()] = todaySummary.sleepMinutes;
+  }
 
-
+  // Hàm tính màu thanh theo mức độ giấc ngủ
+  const getSleepBarColor = (mins) => {
+    if (mins === null) return 'rgba(255,255,255,0.08)';
+    const diff = mins - targetSleepMins;
+    if (diff >= 120) return '#1d4ed8';     // Thừa >2h: xanh dương đậm
+    if (diff >= 0)   return diff >= 60 ? '#60a5fa' : '#22c55e'; // Thừa 0-1h: xanh lá, 1-2h: xanh dương nhạt
+    if (diff > -120) return '#fca5a5';    // Thiếu 1-2h: đỏ nhạt
+    return '#ef4444';                      // Thiếu >2h: đỏ đậm
+  };
 
 
   const userStatsRows = [
@@ -312,19 +322,38 @@ function Stats() {
   }, [chartPeriod, intakeData, targetCals]);
 
   useEffect(() => {
-    if (!workoutChartRef.current) return;
-    const ctx = workoutChartRef.current.getContext('2d');
+    if (!sleepChartRef.current) return;
+    const ctx = sleepChartRef.current.getContext('2d');
+    const sleepDataInHours = sleepWeek.map(v => v !== null ? +(v / 60).toFixed(2) : null);
+    const targetH = +(targetSleepMins / 60).toFixed(1);
+    const barColors = sleepWeek.map(getSleepBarColor);
+
     const chart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-        datasets: [{
-          data: workoutWeek,
-          backgroundColor: workoutWeek.map((v) => (v ? CHART_COLORS.teal : 'rgba(255,255,255,0.08)')),
-          borderRadius: 6,
-          barPercentage: 0.65,
-          categoryPercentage: 0.8,
-        }],
+        labels: SLEEP_WEEK_LABELS,
+        datasets: [
+          {
+            label: 'Mục tiêu giấc ngủ',
+            data: Array(7).fill(targetH),
+            type: 'line',
+            borderColor: 'rgba(255,255,255,0.45)',
+            borderDash: [6, 4],
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+            order: 0,
+          },
+          {
+            label: 'Số giờ ngủ',
+            data: sleepDataInHours,
+            backgroundColor: barColors,
+            borderRadius: 6,
+            barPercentage: 0.65,
+            categoryPercentage: 0.8,
+            order: 1,
+          }
+        ],
       },
       options: {
         responsive: true,
@@ -333,21 +362,41 @@ function Stats() {
           legend: { display: false },
           tooltip: {
             backgroundColor: 'rgba(37, 38, 42, 0.95)',
-            callbacks: { label: (ctx) => (`${ctx.raw} phút`) },
+            titleColor: '#fff',
+            callbacks: {
+              label: (ctx) => {
+                const raw = ctx.raw;
+                if (raw === null) return 'Chưa có dữ liệu';
+                const diff = raw - targetH;
+                const status = diff >= 0
+                  ? (diff >= 2 ? '🔵 Thừa nhiều' : diff >= 1 ? '🔵 Thừa ít' : '🟢 Đủ giấc')
+                  : (diff > -2 ? '🔴 Thiếu ít' : '🔴 Thiếu nhiều');
+                return `${raw.toFixed(1)}h — ${status}`;
+              }
+            }
           },
         },
         scales: {
           x: {
             grid: { display: false },
-            border: { display: false },
             ticks: { color: CHART_COLORS.muted, font: { size: 11 } },
           },
-          y: { display: false, min: 0, max: Math.max(...workoutWeek, 60) },
+          y: {
+            min: 0,
+            max: Math.max(...sleepDataInHours.filter(v => v !== null), targetH + 2),
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            ticks: {
+              color: CHART_COLORS.muted,
+              font: { size: 11 },
+              callback: (v) => `${v}h`,
+            },
+          },
         },
       },
     });
     return () => chart.destroy();
-  }, [workoutHistory]);
+  }, [calHistory, todaySummary, user]);
+
 
   useEffect(() => {
     if (!proportionsRef.current) return;
@@ -656,11 +705,18 @@ function Stats() {
       <div className="stats-row stats-row--charts">
         <div className="stats-chart-card fitbit-card">
           <div className="stats-chart-header">
-            <h2 className="stats-chart-title">Thời Gian Tập Luyện</h2>
+            <h2 className="stats-chart-title">Giấc ngủ tuần này</h2>
           </div>
-          <p className="stats-chart-sub">Số phút tập trong tuần</p>
+          <p className="stats-chart-sub">Số giờ ngủ mỗi ngày — đường kẻ: mục tiêu {targetSleepMins / 60}h</p>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            {[['#22c55e','Đủ giấc'],['#60a5fa','Thừa ít'],['#1d4ed8','Thừa nhiều'],['#fca5a5','Thiếu ít'],['#ef4444','Thiếu nhiều']].map(([c,l]) => (
+              <span key={l} style={{ display:'flex', alignItems:'center', gap:'5px', fontSize:'0.7rem', color:'var(--fitbit-muted)' }}>
+                <span style={{ width:10, height:10, borderRadius:2, background:c, display:'inline-block' }} />{l}
+              </span>
+            ))}
+          </div>
           <div className="stats-chart-container stats-chart-container--bar">
-            <canvas ref={workoutChartRef} />
+            <canvas ref={sleepChartRef} />
           </div>
         </div>
         <div className="stats-chart-card fitbit-card stats-chart-card--proportions">

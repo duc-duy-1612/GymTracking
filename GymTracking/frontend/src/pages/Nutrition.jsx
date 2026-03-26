@@ -21,6 +21,12 @@ function Nutrition() {
   const [showAllLibrary, setShowAllLibrary] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
 
+  // History table states
+  const [historyView, setHistoryView] = useState('week'); // 'week' | 'month'
+  const [historyData, setHistoryData] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [selectedMonthDate, setSelectedMonthDate] = useState(new Date().toISOString().split('T')[0]);
+
   const FOOD_CATEGORIES = [
     '', 'Bánh, kẹo, đồ ngọt', 'Canh', 'Cháo', 'Cơm phần',
     'Đồ ăn liền', 'Đồ ăn tiện lợi', 'Đồ ăn vặt', 'Đồ uống',
@@ -159,6 +165,150 @@ function Nutrition() {
       .catch(() => toast.error('Không cập nhật được bữa ăn hôm nay'))
       .finally(() => setAdding(false));
   };
+
+  // --- Lịch sử ăn uống (Tuần / Tháng) ---
+  useEffect(() => {
+    fetchHistoryData(historyView);
+  }, [historyView, meals.length]); // Refresh khi thêm bữa ăn mới
+
+  const fetchHistoryData = async (view) => {
+    setLoadingHistory(true);
+    try {
+      const end = new Date();
+      const start = new Date();
+      if (view === 'week') {
+        start.setDate(end.getDate() - 6); // 7 days (today + 6 past)
+      } else {
+        // Month view: get the first day of the current month, and the last day
+        start.setDate(1);
+        end.setMonth(end.getMonth() + 1);
+        end.setDate(0); 
+      }
+
+      const endStr = end.toISOString().split('T')[0];
+      const startStr = start.toISOString().split('T')[0];
+
+      const res = await nutritionService.getHistory({ startDate: startStr, endDate: endStr });
+      const rawData = res.data?.data || [];
+      
+      // Aggregate data by Date -> MealType
+      const grouped = {};
+      rawData.forEach(item => {
+        const itemDateStr = item.date.split('T')[0]; // format YYYY-MM-DD
+        if (!grouped[itemDateStr]) {
+          grouped[itemDateStr] = { 
+            dateStr: itemDateStr, 
+            Breakfast: 0, 
+            Lunch: 0, 
+            Dinner: 0, 
+            Snack: 0, 
+            Total: 0, 
+            timestamp: new Date(item.date).getTime() 
+          };
+        }
+        const cal = item.macros?.calories || 0;
+        const mt = item.mealType || 'Snack';
+        grouped[itemDateStr][mt] += cal;
+        grouped[itemDateStr].Total += cal;
+      });
+
+      // Sort by newest date first
+      const sortedArray = Object.values(grouped).sort((a, b) => b.timestamp - a.timestamp);
+      setHistoryData(sortedArray);
+    } catch (err) {
+      console.error('Lỗi khi tải lịch sử:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const getDayName = (dateStr) => {
+    const today = new Date().toISOString().split('T')[0];
+    if (dateStr === today) return 'Hôm nay';
+    
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (dateStr === yesterday.toISOString().split('T')[0]) return 'Hôm qua';
+
+    const dayIndex = new Date(dateStr).getDay();
+    const days = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'];
+    return days[dayIndex];
+  };
+
+  const getCalorieStatusColor = (total) => {
+    const target = targetCalories;
+    if (total === 0) return 'transparent'; // Not logged
+    // Dung sai +- 100 calo coi như đạt (xanh lá)
+    if (Math.abs(total - target) <= 100) return '#22c55e'; // Green
+    if (total > target + 100) return '#ef4444'; // Red (Lố calo)
+    return '#3b82f6'; // Blue (Thiếu calo)
+  };
+
+  // Generate calendar grid for current month
+  const renderCalendar = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const currentMonth = today.getMonth();
+    
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay(); // 0 is Sunday
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    
+    const grid = [];
+    // Adjust so Monday is first (index 0), Sunday is last (index 6)
+    const startOffset = firstDay === 0 ? 6 : firstDay - 1; 
+
+    for (let i = 0; i < startOffset; i++) {
+        grid.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+        const d = new Date(currentYear, currentMonth, day);
+        // bù giờ locale để lấy yyyy-mm-dd chuẩn
+        const localOffset = d.getTimezoneOffset() * 60000;
+        const dateStr = new Date(d.getTime() - localOffset).toISOString().split('T')[0];
+        
+        const dayData = historyData.find(h => h.dateStr === dateStr);
+        const totalCal = dayData ? dayData.Total : 0;
+        const dotColor = getCalorieStatusColor(totalCal);
+        
+        const isSelected = selectedMonthDate === dateStr;
+        const isToday = dateStr === today.toISOString().split('T')[0];
+        const hasData = totalCal > 0;
+
+        grid.push(
+            <div 
+              key={`day-${day}`} 
+              className={`calendar-day ${isSelected ? 'selected' : ''} ${isToday ? 'today' : ''}`}
+              onClick={() => setSelectedMonthDate(dateStr)}
+              style={{
+                background: isSelected ? 'var(--fitbit-teal)' : 'var(--fitbit-card)',
+                color: isSelected ? '#000' : 'var(--fitbit-text)',
+                borderRadius: '8px',
+                padding: '10px 5px',
+                textAlign: 'center',
+                cursor: 'pointer',
+                border: isToday ? '1px solid var(--fitbit-teal)' : '1px solid rgba(255,255,255,0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                minHeight: '60px',
+                transition: 'all 0.2s'
+              }}
+            >
+              <span style={{ fontWeight: isSelected || isToday ? 'bold' : 'normal', fontSize: '1.1rem' }}>{day}</span>
+              {hasData && (
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: isSelected ? '#000' : dotColor }}></div>
+              )}
+            </div>
+        );
+    }
+
+    return grid;
+  };
+
+  const selectedMonthData = historyData.find(h => h.dateStr === selectedMonthDate);
 
   const handleSubmitCustom = (e) => {
     e.preventDefault();
@@ -343,6 +493,137 @@ function Nutrition() {
                 </div>
               )}
             </div>
+          </div>
+        </section>
+
+        {/* LỊCH SỬ BỮA ĂN GẦN ĐÂY */}
+        <section className="today-section">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 className="today-section-title" style={{ margin: 0 }}>Lịch sử bữa ăn</h2>
+            <div className="coach-filters" style={{ padding: 0, display: 'flex', gap: '8px' }}>
+              <button 
+                className={`coach-pill ${historyView === 'week' ? 'coach-pill--active' : ''}`}
+                onClick={() => setHistoryView('week')}
+                style={{ padding: '6px 14px', fontSize: '0.85rem' }}
+              >
+                7 ngày qua
+              </button>
+              <button 
+                className={`coach-pill ${historyView === 'month' ? 'coach-pill--active' : ''}`}
+                onClick={() => setHistoryView('month')}
+                style={{ padding: '6px 14px', fontSize: '0.85rem' }}
+              >
+                30 ngày qua
+              </button>
+            </div>
+          </div>
+
+          <div className="fitbit-card card-dark" style={{ overflowX: 'auto', padding: historyView === 'week' ? '0' : '20px' }}>
+            {loadingHistory ? (
+               <div style={{ textAlign: 'center', padding: '40px', color: 'var(--fitbit-muted)' }}>
+                 <i className="bi bi-arrow-repeat" style={{ fontSize: '2rem', animation: 'spin 1s linear infinite', display: 'block', marginBottom: '8px' }} />
+                 Đang tải lịch sử...
+               </div>
+            ) : historyView === 'week' ? (
+              // WEEK VIEW: Table showing days of week
+              historyData.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--fitbit-muted)' }}>
+                  Chưa có dữ liệu nào trong 7 ngày qua.
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center', fontSize: '0.9rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--fitbit-muted)', background: 'rgba(0,0,0,0.2)' }}>
+                      <th style={{ padding: '16px', textAlign: 'left', fontWeight: '500' }}>Ngày</th>
+                      <th style={{ padding: '16px', fontWeight: '500' }}>Sáng</th>
+                      <th style={{ padding: '16px', fontWeight: '500' }}>Trưa</th>
+                      <th style={{ padding: '16px', fontWeight: '500' }}>Tối</th>
+                      <th style={{ padding: '16px', fontWeight: '500' }}>Phụ</th>
+                      <th style={{ padding: '16px', fontWeight: '500', color: 'var(--fitbit-teal)' }}>Tổng (cal)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Chỉ lấy 7 ngày qua từ mảng historyData (đã fetch cho "week" view là 7 ngày) */}
+                    {historyData.map((row, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                        <td style={{ padding: '16px', textAlign: 'left', fontWeight: 'bold' }}>
+                          <div>{getDayName(row.dateStr)}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--fitbit-muted)', fontWeight: 'normal' }}>
+                            {new Date(row.dateStr).toLocaleDateString('vi-VN')}
+                          </div>
+                        </td>
+                        <td style={{ padding: '16px', color: row.Breakfast > 0 ? '#fff' : 'rgba(255,255,255,0.2)' }}>{row.Breakfast > 0 ? row.Breakfast : '-'}</td>
+                        <td style={{ padding: '16px', color: row.Lunch > 0 ? '#fff' : 'rgba(255,255,255,0.2)' }}>{row.Lunch > 0 ? row.Lunch : '-'}</td>
+                        <td style={{ padding: '16px', color: row.Dinner > 0 ? '#fff' : 'rgba(255,255,255,0.2)' }}>{row.Dinner > 0 ? row.Dinner : '-'}</td>
+                        <td style={{ padding: '16px', color: row.Snack > 0 ? '#fff' : 'rgba(255,255,255,0.2)' }}>{row.Snack > 0 ? row.Snack : '-'}</td>
+                        <td style={{ padding: '16px', color: 'var(--fitbit-teal)', fontWeight: 'bold' }}>{row.Total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            ) : (
+              // MONTH VIEW: Calendar Grid & Selected Day Details
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+                {/* Cột trái: Lịch */}
+                <div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginBottom: '8px' }}>
+                    {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(d => (
+                      <div key={d} style={{ textAlign: 'center', color: 'var(--fitbit-muted)', fontSize: '0.85rem', fontWeight: 'bold' }}>{d}</div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '10px', marginBottom: '20px' }}>
+                    {renderCalendar()}
+                  </div>
+                  
+                  {/* Lệnh chú thích màu */}
+                  <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--fitbit-muted)', marginBottom: '24px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }}></div> Đạt mục tiêu</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#3b82f6' }}></div> Thiếu calo</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }}></div> Lố calo</span>
+                  </div>
+                </div>
+
+                {/* Cột phải: Chi tiết ngày đã chọn */}
+                <div>
+                  <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '12px', padding: '20px', height: '100%' }}>
+                    <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: 'var(--fitbit-teal)' }}>
+                      Chi tiết: {getDayName(selectedMonthDate)} ({new Date(selectedMonthDate).toLocaleDateString('vi-VN')})
+                    </h3>
+                    
+                    {!selectedMonthData || selectedMonthData.Total === 0 ? (
+                      <p style={{ color: 'var(--fitbit-muted)', margin: 0 }}>Không có dữ liệu bữa ăn cho ngày này.</p>
+                    ) : (
+                      <div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                          <div style={{ background: 'var(--fitbit-card)', padding: '12px 16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--fitbit-muted)' }}>Bữa sáng</span>
+                            <span style={{ fontWeight: 'bold' }}>{selectedMonthData.Breakfast > 0 ? `${selectedMonthData.Breakfast} cal` : '-'}</span>
+                          </div>
+                          <div style={{ background: 'var(--fitbit-card)', padding: '12px 16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--fitbit-muted)' }}>Bữa trưa</span>
+                            <span style={{ fontWeight: 'bold' }}>{selectedMonthData.Lunch > 0 ? `${selectedMonthData.Lunch} cal` : '-'}</span>
+                          </div>
+                          <div style={{ background: 'var(--fitbit-card)', padding: '12px 16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--fitbit-muted)' }}>Bữa tối</span>
+                            <span style={{ fontWeight: 'bold' }}>{selectedMonthData.Dinner > 0 ? `${selectedMonthData.Dinner} cal` : '-'}</span>
+                          </div>
+                          <div style={{ background: 'var(--fitbit-card)', padding: '12px 16px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                            <span style={{ color: 'var(--fitbit-muted)' }}>Bữa phụ</span>
+                            <span style={{ fontWeight: 'bold' }}>{selectedMonthData.Snack > 0 ? `${selectedMonthData.Snack} cal` : '-'}</span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', background: 'var(--fitbit-card)', borderRadius: '8px', borderLeft: `4px solid ${getCalorieStatusColor(selectedMonthData.Total)}` }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>Tổng cộng</span>
+                          <span style={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'var(--fitbit-teal)' }}>{selectedMonthData.Total} cal</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
           </div>
         </section>
       </div>

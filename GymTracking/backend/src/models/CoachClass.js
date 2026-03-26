@@ -8,6 +8,7 @@ const coachClassSchema = new mongoose.Schema({
   section: { type: String, required: true },  // e.g., 'Peloton', 'Sleep', 'Stress', 'Fitness'
   image: { type: String, required: true },
   videoUrl: { type: String, default: '' },
+  instructorId: { type: mongoose.Schema.Types.ObjectId, ref: 'Instructor', default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('CoachClass', coachClassSchema);
