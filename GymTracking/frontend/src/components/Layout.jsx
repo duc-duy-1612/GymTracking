@@ -1,11 +1,26 @@
 import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useUser } from '../context/UserContext';
+import ChatAssistant from './ChatAssistant';
+import { connectHealthSocket, disconnectHealthSocket } from '../services/socketService';
 
 function Layout({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, fetchUser } = useUser();
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) connectHealthSocket(token);
+    const onRefresh = () => {
+      fetchUser();
+    };
+    window.addEventListener('healthflow:refresh', onRefresh);
+    return () => {
+      window.removeEventListener('healthflow:refresh', onRefresh);
+      disconnectHealthSocket();
+    };
+  }, [fetchUser]);
   const [headerDate, setHeaderDate] = useState('');
 
   useEffect(() => {
@@ -116,6 +131,8 @@ function Layout({ children }) {
         <div className={`content-area ${['/today', '/workout', '/coach', '/stats', '/profile', '/nutrition', '/sleep', '/history', '/water'].includes(location.pathname) ? 'content-area--wide' : ''}`}>
           {children}
         </div>
+
+        {location.pathname !== '/workout' && <ChatAssistant />}
 
         {location.pathname !== '/workout' && (
           <div className="fab-wrap" ref={fabWrapRef}>

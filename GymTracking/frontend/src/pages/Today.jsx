@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import dailySummaryService from '../services/dailySummaryService';
 import workoutService from '../services/workoutService';
+import recommendationService from '../services/recommendationService';
 import { useUser } from '../context/UserContext';
 import toast from 'react-hot-toast';
 import { calcSmartTargets } from '../utils/smartGoalCalc';
@@ -43,6 +45,8 @@ function ProgressRing({ radius = 24, stroke = 4, progress = 0, color = '#00B0B9'
 function Today() {
   const { user } = useUser();
   const [loading, setLoading] = useState(true);
+  const [recLoading, setRecLoading] = useState(true);
+  const [recommendations, setRecommendations] = useState(null);
   const [weekData, setWeekData] = useState(Array(7).fill(0));
   const [summary, setSummary] = useState({
     waterMl: 0,
@@ -53,7 +57,8 @@ function Today() {
     exercisedToday: false,
   });
 
-  useEffect(() => {
+  const loadTodayData = useCallback(() => {
+    setLoading(true);
     Promise.all([
       dailySummaryService.getToday(),
       dailySummaryService.getHistory(),
@@ -109,6 +114,32 @@ function Today() {
     }).finally(() => setLoading(false));
   }, []);
 
+  const loadRecommendations = useCallback(() => {
+    setRecLoading(true);
+    recommendationService
+      .getTodayRecommendations()
+      .then((res) => setRecommendations(res.data?.data || null))
+      .catch(() => setRecommendations(null))
+      .finally(() => setRecLoading(false));
+  }, []);
+
+  useEffect(() => {
+    loadTodayData();
+  }, [loadTodayData]);
+
+  useEffect(() => {
+    loadRecommendations();
+  }, [loadRecommendations]);
+
+  useEffect(() => {
+    const onRefresh = () => {
+      loadTodayData();
+      loadRecommendations();
+    };
+    window.addEventListener('healthflow:refresh', onRefresh);
+    return () => window.removeEventListener('healthflow:refresh', onRefresh);
+  }, [loadTodayData, loadRecommendations]);
+
   const smartTargets = calcSmartTargets(user);
   const baseTargetCalories = smartTargets?.targetIntake ?? (user?.autoStats?.tdee ?? TARGET_CALORIES_DEFAULT);
   const baseTargetBurn = smartTargets?.targetBurn ?? TARGET_BURN_DEFAULT;
@@ -150,6 +181,55 @@ function Today() {
 
   return (
     <div className="today-sections">
+
+      <section className="today-section">
+        <h2 className="today-section-title">Gợi ý hôm nay (Recommendation)</h2>
+        <p className="fitbit-card-sub" style={{ marginTop: 0, marginBottom: '12px', maxWidth: '720px' }}>
+          Gợi ý món ăn và bài tập dựa trên calo còn lại, protein đã nạp và nhóm cơ ít tập trong 7 ngày — cập nhật qua Socket.IO khi bạn ghi nhận dinh dưỡng / tập.
+        </p>
+        {recLoading && <p className="text-muted">Đang tải gợi ý…</p>}
+        {!recLoading && recommendations && (
+          <div className="today-cards today-cards--2col">
+            <div className="fitbit-card">
+              <div className="fitbit-card-body">
+                <p className="fitbit-card-title">Món gợi ý</p>
+                <ul className="healthflow-rec-list">
+                  {(recommendations.foods || []).map((f) => (
+                    <li key={f._id}>
+                      <strong>{f.name}</strong>
+                      <span className="healthflow-rec-meta">
+                        {' '}
+                        ~{f.calories} kcal · P {f.protein}g
+                      </span>
+                      <div className="healthflow-rec-reason">{f.reason}</div>
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/nutrition" className="healthflow-rec-link">
+                  Mở Dinh dưỡng để thêm món →
+                </Link>
+              </div>
+            </div>
+            <div className="fitbit-card">
+              <div className="fitbit-card-body">
+                <p className="fitbit-card-title">Bài tập gợi ý</p>
+                <ul className="healthflow-rec-list">
+                  {(recommendations.exercises || []).map((e) => (
+                    <li key={e._id}>
+                      <strong>{e.name}</strong>
+                      <span className="healthflow-rec-meta"> · {e.muscleGroup}</span>
+                      <div className="healthflow-rec-reason">{e.reason}</div>
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/workout" className="healthflow-rec-link">
+                  Mở Bài tập →
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="today-section">
         <h2 className="today-section-title">Nutrition</h2>

@@ -15,7 +15,6 @@ const FILTERS = [
   { id: 'mobility', label: 'Mobility & recovery', icon: 'bi bi-arrow-repeat' },
   { id: 'recipes', label: 'Recipes', icon: 'bi bi-egg-fried' },
   { id: 'new', label: 'New', icon: 'bi bi-stars' },
-  { id: 'available', label: 'Available to you', icon: 'bi bi-unlock' },
   { id: 'favorites', label: 'Favorites', icon: 'bi bi-heart-fill' },
 ];
 
@@ -133,7 +132,6 @@ function Coach() {
   const { user, setUser } = useUser();
   const [classes, setClasses] = useState([]);
   const [instructors, setInstructors] = useState([]);
-  const [brands, setBrands] = useState([]);
   
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -147,14 +145,11 @@ function Coach() {
   const [loadingInstructorClasses, setLoadingInstructorClasses] = useState(false);
 
   const instructorsCarouselRef = useRef(null);
-  const brandsCarouselRef = useRef(null);
   const instructorsJumpingRef = useRef(false);
-  const brandsJumpingRef = useRef(false);
 
   useEffect(() => {
     coachService.getClasses().then(res => setClasses(res.data.data)).catch(console.error);
     coachService.getInstructors().then(res => setInstructors(res.data.data)).catch(console.error);
-    coachService.getBrands().then(res => setBrands(res.data.data)).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -252,25 +247,6 @@ function Coach() {
       if (cleanup) cleanup();
     };
   }, [instructors.length]);
-
-  useEffect(() => {
-    const el = brandsCarouselRef.current;
-    if (!el || brands.length === 0) return;
-    const init = () => {
-      const oneCopy = el.scrollWidth / COPIES;
-      if (oneCopy <= 0) return;
-      brandsJumpingRef.current = true;
-      el.scrollLeft = oneCopy;
-      brandsJumpingRef.current = false;
-    };
-    init();
-    const raf = requestAnimationFrame(init);
-    const cleanup = setupInfiniteScroll(brandsCarouselRef, brandsJumpingRef);
-    return () => {
-      cancelAnimationFrame(raf);
-      if (cleanup) cleanup();
-    };
-  }, [brands.length]);
 
   const pelotonItems = classes.filter(c => c.section === 'Peloton');
   const sleepItems = classes.filter(c => c.section === 'Sleep');
@@ -400,39 +376,13 @@ function Coach() {
         </div>
       </section>
 
-      <section className="coach-section">
-        <div className="coach-section-header">
-          <h2 className="coach-section-title">Thương hiệu</h2>
-          <button type="button" className="coach-see-all" onClick={() => setSeeAllModal('brands')}>Xem tất cả</button>
-        </div>
-        <div className="coach-carousel-wrap">
-          <button type="button" className="coach-carousel-btn coach-carousel-btn--prev" onClick={() => carouselPrev(brandsCarouselRef)} aria-label="Trước">
-            <i className="bi bi-chevron-left" />
-          </button>
-          <div ref={brandsCarouselRef} className="coach-brand-row coach-carousel-track">
-            {brands.length > 0 && Array.from({ length: COPIES }, (_, copy) =>
-              brands.map((b, i) => (
-                <button key={`brand-${copy}-${b._id || i}`} type="button" className="coach-brand-card">
-                  <i className={`bi ${b.icon} coach-brand-icon`} />
-                  <span className="coach-brand-name">{b.name}</span>
-                </button>
-              ))
-            )}
-          </div>
-          <button type="button" className="coach-carousel-btn coach-carousel-btn--next" onClick={() => carouselNext(brandsCarouselRef)} aria-label="Sau">
-            <i className="bi bi-chevron-right" />
-          </button>
-        </div>
-      </section>
-
-      {/* SEE ALL MODAL (Instructors/Brands/Classes) */}
+      {/* SEE ALL MODAL (Instructors/Classes) */}
       {seeAllModal && (
         <div className="coach-modal-overlay" onClick={() => setSeeAllModal(null)} role="presentation">
           <div className="coach-modal" onClick={(e) => e.stopPropagation()}>
             <div className="coach-modal-header">
               <h3 className="coach-modal-title">
                 {seeAllModal === 'instructors' && 'Huấn luyện viên'}
-                {seeAllModal === 'brands' && 'Thương hiệu'}
                 {seeAllModal === 'Peloton' && 'Lớp Peloton'}
                 {seeAllModal === 'Sleep' && 'Ngủ ngon hơn'}
                 {seeAllModal === 'Stress' && 'Giảm căng thẳng'}
@@ -459,16 +409,6 @@ function Coach() {
                       <p className="coach-instructor-name">{inst.name}</p>
                       <p className="coach-instructor-role">{inst.role}</p>
                     </div>
-                  ))}
-                </div>
-              )}
-              {seeAllModal === 'brands' && (
-                <div className="coach-modal-brands">
-                  {brands.map((b, i) => (
-                    <button key={i} type="button" className="coach-brand-card">
-                      <i className={`bi ${b.icon} coach-brand-icon`} />
-                      <span className="coach-brand-name">{b.name}</span>
-                    </button>
                   ))}
                 </div>
               )}
