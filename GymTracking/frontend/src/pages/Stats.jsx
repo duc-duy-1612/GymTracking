@@ -5,6 +5,7 @@ import dailySummaryService from '../services/dailySummaryService';
 import workoutService from '../services/workoutService';
 import nutritionService from '../services/nutritionService';
 import userService from '../services/userService';
+import healthLogService from '../services/healthLogService';
 import toast from 'react-hot-toast';
 import { calcSmartTargets } from '../utils/smartGoalCalc';
 import Model from 'react-body-highlighter';
@@ -62,19 +63,26 @@ function Stats() {
   const intakeRef = useRef(null);
   const sleepChartRef = useRef(null);
   const proportionsRef = useRef(null);
+  const weightChartRef = useRef(null);
+
+  const [weightHistoryLog, setWeightHistoryLog] = useState([]);
+  const [weightUpdateOpen, setWeightUpdateOpen] = useState(false);
+  const [newWeight, setNewWeight] = useState('');
 
   useEffect(() => {
     Promise.all([
       dailySummaryService.getToday(),
       workoutService.getHistory(),
       dailySummaryService.getHistory({ days: 7 }),
-      nutritionService.getHistory()
-    ]).then(([todayRes, workoutRes, historyRes, nutRes]) => {
+      nutritionService.getHistory(),
+      healthLogService.getWeightHistory()
+    ]).then(([todayRes, workoutRes, historyRes, nutRes, weightRes]) => {
       setTodaySummary(todayRes.data);
       setWorkoutHistory(workoutRes.data?.data || []);
       const hist = historyRes.data?.data || historyRes.data || [];
       setCalHistory([...hist].reverse());
       setNutritionHistory(nutRes.data?.data || []);
+      setWeightHistoryLog(weightRes.data || []);
     }).catch(err => console.error('Lỗi lấy thống kê', err));
   }, []);
 
@@ -581,6 +589,76 @@ function Stats() {
     }
   });
 
+  const handleSaveWeight = async () => {
+    const w = Number(newWeight);
+    if (!w || isNaN(w) || w < 20 || w > 300) {
+      return toast.error('Cân nặng phải từ 20 đến 300 kg');
+    }
+    try {
+      await healthLogService.addWeightLog(w);
+      const weightRes = await healthLogService.getWeightHistory();
+      setWeightHistoryLog(weightRes.data || []);
+      if (user?.measurements) user.measurements.weight = w;
+      toast.success('Cập nhật cân nặng thành công!');
+      setWeightUpdateOpen(false);
+    } catch {
+      toast.error('Cập nhật cân nặng thất bại. Vui lòng thử lại.');
+    }
+  };
+
+  useEffect(() => {
+    if (!weightChartRef.current || weightHistoryLog.length === 0) return;
+    const ctx = weightChartRef.current.getContext('2d');
+    const labels = weightHistoryLog.map(log => {
+      const d = new Date(log.date);
+      return `${d.getDate()}/${d.getMonth()+1}`;
+    });
+    const data = weightHistoryLog.map(log => log.value);
+
+    let chartStatus = Chart.getChart(ctx);
+    if (chartStatus !== undefined) chartStatus.destroy();
+
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Cân nặng (kg)',
+          data,
+          borderColor: CHART_COLORS.teal,
+          backgroundColor: CHART_COLORS.tealLight,
+          borderWidth: 2,
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: CHART_COLORS.teal,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(37, 38, 42, 0.95)',
+            titleColor: '#fff',
+            bodyColor: CHART_COLORS.teal,
+          },
+        },
+        scales: {
+          x: { ticks: { color: CHART_COLORS.muted }, grid: { display: false } },
+          y: { 
+            ticks: { color: CHART_COLORS.muted }, 
+            grid: { color: 'rgba(255,255,255,0.06)' },
+            suggestedMin: Math.min(...data) - 2,
+            suggestedMax: Math.max(...data) + 2
+          }
+        }
+      }
+    });
+    return () => chart.destroy();
+  }, [weightHistoryLog]);
+
   if (userLoading && !user) {
     return (
       <div className="stats-page">
@@ -609,12 +687,20 @@ function Stats() {
     <div className="stats-page">
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h1 className="stats-page-title m-0">Thống kê tiến độ</h1>
-        <button type="button" className="btn btn-fitbit rounded-pill d-flex align-items-center px-4" onClick={() => {
-          setGoalParams({ ...goalParams, currentWeight: weight || 70, targetWeight: targetWeight || 65 });
-          setPlannerOpen(true);
-        }}>
-          <i className="bi bi-gem me-2" /> Lập lộ trình Smart Goal
-        </button>
+        <div className="d-flex gap-2">
+          <button type="button" className="btn btn-outline-light border-secondary rounded-pill d-flex align-items-center px-3" onClick={() => {
+            setNewWeight(weight || '');
+            setWeightUpdateOpen(true);
+          }}>
+            <i className="bi bi-speedometer2 me-2" /> Cập nhật cân nặng
+          </button>
+          <button type="button" className="btn btn-fitbit rounded-pill d-flex align-items-center px-4" onClick={() => {
+            setGoalParams({ ...goalParams, currentWeight: weight || 70, targetWeight: targetWeight || 65 });
+            setPlannerOpen(true);
+          }}>
+            <i className="bi bi-gem me-2" /> Lập lộ trình Smart Goal
+          </button>
+        </div>
       </div>
 
       <div className="stats-row stats-row--top">
@@ -730,6 +816,39 @@ function Stats() {
         </div>
       </div>
 
+      {weightHistoryLog.length > 0 && (
+        <div className="stats-row mb-4">
+          <div className="stats-chart-card fitbit-card w-100">
+            <div className="stats-chart-header">
+              <h2 className="stats-chart-title">Tiến độ Cân nặng</h2>
+            </div>
+            <p className="stats-chart-sub">Sự thay đổi cân nặng theo thời gian</p>
+            <div className="stats-chart-container stats-chart-container--line">
+              <canvas ref={weightChartRef} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {weightUpdateOpen && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1050 }} tabIndex="-1" onClick={(e) => { if (e.target.classList.contains('modal')) setWeightUpdateOpen(false); }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content card-dark border-secondary shadow-lg">
+              <div className="modal-header border-secondary">
+                <h5 className="modal-title text-fitbit-teal"><i className="bi bi-speedometer2 me-2" /> Cập nhật Cân nặng</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setWeightUpdateOpen(false)} />
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label text-muted small">Cân nặng hôm nay (kg)</label>
+                  <input type="number" className="form-control bg-dark text-light border-secondary" value={newWeight} onChange={e => setNewWeight(e.target.value)} autoFocus />
+                </div>
+                <button type="button" className="btn btn-fitbit w-100" onClick={handleSaveWeight}>Lưu cân nặng</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {plannerOpen && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1050 }} tabIndex="-1" onClick={(e) => { if (e.target.classList.contains('modal')) setPlannerOpen(false); }}>
