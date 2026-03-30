@@ -26,6 +26,9 @@ function Settings() {
     unitHeight: 'cm',
     theme: 'dark',
     notifications: true,
+    exerciseScheduleEnabled: false,
+    exerciseStartTime: '18:00',
+    exerciseEndTime: '19:00',
   });
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
@@ -140,6 +143,52 @@ function Settings() {
                     Nhận nhắc nhở uống nước, tập luyện, ngủ đúng giờ
                   </label>
                 </div>
+              </div>
+
+              <div className="mb-3" style={{ marginTop: '-0.25rem' }}>
+                <div className="form-check form-switch">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="exerciseScheduleSwitch"
+                    checked={Boolean(prefs.exerciseScheduleEnabled)}
+                    onChange={(e) => handleChange('exerciseScheduleEnabled', e.target.checked)}
+                    disabled={!prefs.notifications}
+                  />
+                  <label className="form-check-label" htmlFor="exerciseScheduleSwitch">
+                    Nhắc lịch tập trước 30 phút
+                  </label>
+                </div>
+                <p className="form-hint" style={{ marginBottom: 0 }}>
+                  Toast chỉ chạy khi bạn đang mở trang `Today`.
+                </p>
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Khoảng thời gian muốn tập</label>
+                <div className="profile-form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <input
+                      type="time"
+                      className="form-control"
+                      value={prefs.exerciseStartTime}
+                      onChange={(e) => handleChange('exerciseStartTime', e.target.value)}
+                      disabled={!prefs.notifications || !prefs.exerciseScheduleEnabled}
+                    />
+                  </div>
+                  <div>
+                    <input
+                      type="time"
+                      className="form-control"
+                      value={prefs.exerciseEndTime}
+                      onChange={(e) => handleChange('exerciseEndTime', e.target.value)}
+                      disabled={!prefs.notifications || !prefs.exerciseScheduleEnabled}
+                    />
+                  </div>
+                </div>
+                <p className="form-hint" style={{ marginBottom: 0 }}>
+                  Today sẽ gợi ý bài tập theo phần “Recommendation”.
+                </p>
               </div>
             </div>
           </div>

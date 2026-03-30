@@ -100,6 +100,12 @@ exports.getTodayRecommendations = async (req, res) => {
       name: e.name,
       muscleGroup: e.muscleGroup,
       type: e.type,
+      targetMuscles: e.targetMuscles || [],
+      defaultSets: e.defaultSets,
+      defaultRepsMin: e.defaultRepsMin,
+      defaultRepsMax: e.defaultRepsMax,
+      restSeconds: e.restSeconds,
+      caloriesPerSet: e.caloriesPerSet,
       reason:
         trainedGroups.size === 0
           ? 'Start the week with compound movement for this muscle group.'
